@@ -87,6 +87,19 @@ export type CarResourceConfig = {
   calendarTitleField?: string;
   canCreate?: boolean;
   canDelete?: boolean;
+  /**
+   * Shows the one-shot "describe it, then fill" panel on the create form.
+   * Only worth enabling where a user actually has free text to paste; the
+   * field contract is derived from `fields`, skipping relations, attachments
+   * and auto-generated values, which no description can supply.
+   */
+  aiFill?: {
+    descriptionKey: string;
+    labelKey: string;
+    placeholderKey: string;
+    /** Extra domain guidance appended to the generated prompt. */
+    instructions?: string;
+  };
   /** Configures an embedded AI assistant rendered below the resource list. */
   aiAssistant?: {
     kind: "scm_dispatch" | "contract" | "pricing";

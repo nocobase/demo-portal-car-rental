@@ -619,4 +619,46 @@ export const car = {
   "auth.brand.foundationBody": "Reliable data, access control, workflows and governance.",
   "auth.brand.tagline": "Freedom above. Confidence below.",
   "auth.brand.headline": "Let AI build freely. NocoBase keeps it reliable.",
+  // Reusable AI form-fill panel (src/components/ai-fill)
+  "ai.fill.title": "AI assist",
+  "ai.fill.action": "Fill with AI",
+  "ai.fill.analyzing": "Analyzing...",
+  "ai.fill.undo": "Undo",
+  "ai.fill.emptyValue": "(empty)",
+  "ai.fill.validation.describeFirst":
+    "Describe what you need first, so AI assist can fill the form.",
+  "ai.fill.mode.idle": "Your description is sent to this server's AI assistant",
+  "ai.fill.mode.ai":
+    "Filled by AI \u00b7 your description was sent to this server's AI assistant",
+  "ai.fill.mode.local": "Local analysis \u00b7 the AI assistant was unavailable",
+  "ai.fill.updatedFields": "Updated {{count}} field(s)",
+  "ai.fill.noChanges":
+    "Nothing to change \u2014 the form already matches your description.",
+  "ai.fill.skipped":
+    "Ignored {{count}} value(s) this form does not accept: {{names}}",
+  "ai.fill.error.timeout":
+    "The AI assistant did not respond in time. Nothing was filled \u2014 please try again or fill the form manually.",
+  "ai.fill.error.noModel":
+    "No AI model is enabled on this server, so the form could not be filled automatically.",
+  "ai.fill.error.unparseable":
+    "The AI assistant returned a response that could not be read. Nothing was filled.",
+  "ai.fill.error.nothingUsable":
+    "The AI assistant did not return any value this form accepts. Nothing was filled.",
+  "ai.fill.error.unavailable":
+    "The AI assistant is unavailable right now. Nothing was filled \u2014 please fill the form manually.",
+  "car.order.aiFill.description":
+    "Describe the booking in plain language. AI assist will fill the dates, rate and status; pick the customer and vehicle yourself.",
+  "car.order.aiFill.label": "Describe the booking",
+  "car.order.aiFill.placeholder":
+    "Example: Picking up on 5 August 2026 at 9am and returning on the 9th at 6pm, agreed rate 89 per day, total 356.",
+  "car.maintenance.aiFill.description":
+    "Describe the work in plain language. AI assist will fill the type, cost and dates; pick the vehicle yourself.",
+  "car.maintenance.aiFill.label": "Describe the maintenance",
+  "car.maintenance.aiFill.placeholder":
+    "Example: Routine 20000 km service on 3 August 2026, oil and brake pads replaced, 240 in total, next service due in February 2027.",
+  "car.violation.aiFill.description":
+    "Paste the ticket in plain language. AI assist will fill the date, location, fine and status; pick the vehicle yourself.",
+  "car.violation.aiFill.label": "Describe the violation",
+  "car.violation.aiFill.placeholder":
+    "Example: Speeding ticket on the A4 near junction 12 on 28 July 2026, 3 points and a 120 fine, still unpaid.",
 } as const;

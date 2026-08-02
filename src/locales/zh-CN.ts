@@ -609,4 +609,36 @@ export const car = {
   "auth.brand.foundationBody": "可靠的数据、权限、工作流与治理。",
   "auth.brand.tagline": "上层自由，底层可靠。",
   "auth.brand.headline": "让 AI 自由构建，NocoBase 保障可靠。",
+  // 可复用 AI 填单面板（src/components/ai-fill）
+  "ai.fill.title": "AI 智能填单",
+  "ai.fill.action": "AI 智能填单",
+  "ai.fill.analyzing": "正在分析...",
+  "ai.fill.undo": "撤销",
+  "ai.fill.emptyValue": "（空）",
+  "ai.fill.validation.describeFirst": "请先描述你的需求，AI 才能填写表单。",
+  "ai.fill.mode.idle": "你的描述将发送至本服务器的 AI 助手",
+  "ai.fill.mode.ai": "由 AI 填写 \u00b7 你的描述已发送至本服务器的 AI 助手",
+  "ai.fill.mode.local": "本地分析 \u00b7 AI 助手当前不可用",
+  "ai.fill.updatedFields": "已更新 {{count}} 个字段",
+  "ai.fill.noChanges": "无需改动 \u2014 表单内容已与你的描述一致。",
+  "ai.fill.skipped": "已忽略 {{count}} 个本表单不接受的值：{{names}}",
+  "ai.fill.error.timeout":
+    "AI 助手响应超时，未填写任何内容 \u2014 请重试或手动填写。",
+  "ai.fill.error.noModel": "本服务器未启用任何 AI 模型，无法自动填写表单。",
+  "ai.fill.error.unparseable": "AI 助手返回的内容无法解析，未填写任何内容。",
+  "ai.fill.error.nothingUsable": "AI 助手未返回本表单可接受的值，未填写任何内容。",
+  "ai.fill.error.unavailable":
+    "AI 助手当前不可用，未填写任何内容 \u2014 请手动填写表单。",
+  "car.order.aiFill.description": "用自然语言描述这笔订单，AI 助手会自动填写起止时间、日租金和状态；客户和车辆请自行选择。",
+  "car.order.aiFill.label": "描述这笔订单",
+  "car.order.aiFill.placeholder":
+    "例如：2026 年 8 月 5 日上午 9 点取车，9 日下午 6 点还车，日租金 89，合计 356。",
+  "car.maintenance.aiFill.description": "用自然语言描述这次维保，AI 助手会自动填写类型、费用和日期；车辆请自行选择。",
+  "car.maintenance.aiFill.label": "描述这次维保",
+  "car.maintenance.aiFill.placeholder":
+    "例如：2026 年 8 月 3 日做 2 万公里常规保养，更换机油和刹车片，合计 240，下次保养在 2027 年 2 月。",
+  "car.violation.aiFill.description": "把违章通知粘贴进来，AI 助手会自动填写日期、地点、罚款和状态；车辆请自行选择。",
+  "car.violation.aiFill.label": "描述这条违章",
+  "car.violation.aiFill.placeholder":
+    "例如：2026 年 7 月 28 日在 A4 高速 12 号出口附近超速，扣 3 分罚款 120，尚未缴纳。",
 } as const;
