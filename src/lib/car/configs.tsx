@@ -24,6 +24,7 @@ const vehicleStatusOptions = [
   { value: "rented", label: "car.vehicle.status.rented" },
   { value: "maintenance", label: "car.vehicle.status.maintenance" },
   { value: "retired", label: "car.vehicle.status.retired" },
+  { value: "scrapped", label: "car.vehicle.status.scrapped" },
 ];
 
 const orderStatusOptions = [
@@ -42,6 +43,8 @@ const paymentStatusOptions = [
 const violationStatusOptions = [
   { value: "pending", label: "car.violation.status.pending" },
   { value: "processing", label: "car.violation.status.processing" },
+  { value: "appealing", label: "car.violation.status.appealing" },
+  { value: "processed", label: "car.violation.status.processed" },
   { value: "resolved", label: "car.violation.status.resolved" },
 ];
 
@@ -53,12 +56,14 @@ const dispatchStatusOptions = [
 
 const branchStatusOptions = [
   { value: "open", label: "car.branch.status.open" },
+  { value: "renovating", label: "car.branch.status.renovating" },
   { value: "closed", label: "car.branch.status.closed" },
 ];
 
 const customerStatusOptions = [
-  { value: "active", label: "car.customer.status.active" },
   { value: "lead", label: "car.customer.status.lead" },
+  { value: "active", label: "car.customer.status.active" },
+  { value: "churned", label: "car.customer.status.churned" },
   { value: "blocked", label: "car.customer.status.blocked" },
 ];
 
@@ -67,15 +72,66 @@ const customerTypeOptions = [
   { value: "corporate", label: "car.customer.type.corporate" },
 ];
 
+const creditLevelOptions = [
+  { value: "high", label: "car.customer.credit_level.high" },
+  { value: "medium", label: "car.customer.credit_level.medium" },
+  { value: "low", label: "car.customer.credit_level.low" },
+];
+
 const contractStatusOptions = [
   { value: "draft", label: "car.contract.status.draft" },
   { value: "signed", label: "car.contract.status.signed" },
+  { value: "active", label: "car.contract.status.active" },
+  { value: "completed", label: "car.contract.status.completed" },
   { value: "archived", label: "car.contract.status.archived" },
+  { value: "void", label: "car.contract.status.void" },
 ];
 
 const maintenanceTypeOptions = [
+  { value: "service", label: "car.maintenance.type.service" },
   { value: "maintenance", label: "car.maintenance.type.maintenance" },
   { value: "repair", label: "car.maintenance.type.repair" },
+  { value: "inspection", label: "car.maintenance.type.inspection" },
+];
+
+const insuranceTypeOptions = [
+  { value: "compulsory", label: "car.insurance.type.compulsory" },
+  { value: "commercial", label: "car.insurance.type.commercial" },
+  { value: "third_party", label: "car.insurance.type.third_party" },
+];
+
+const paymentMethodOptions = [
+  { value: "cash", label: "car.payment.method.cash" },
+  { value: "card", label: "car.payment.method.card" },
+  { value: "alipay", label: "car.payment.method.alipay" },
+  { value: "wechat", label: "car.payment.method.wechat" },
+];
+
+const staffRoleOptions = [
+  { value: "admin", label: "car.staff.role.admin" },
+  { value: "manager", label: "car.staff.role.manager" },
+  { value: "agent", label: "car.staff.role.agent" },
+];
+
+const todoKindOptions = [
+  { value: "overdue_return", label: "car.todo.kind.overdue_return" },
+  { value: "insurance", label: "car.todo.kind.insurance" },
+  { value: "inspection", label: "car.todo.kind.inspection" },
+  { value: "maintenance", label: "car.todo.kind.maintenance" },
+  { value: "license", label: "car.todo.kind.license" },
+];
+
+const todoStatusOptions = [
+  { value: "open", label: "car.todo.status.open" },
+  { value: "done", label: "car.todo.status.done" },
+];
+
+const todoSourceTypeOptions = [
+  { value: "order", label: "car.todo.source_type.order" },
+  { value: "vehicle", label: "car.todo.source_type.vehicle" },
+  { value: "insurance", label: "car.todo.source_type.insurance" },
+  { value: "maintenance", label: "car.todo.source_type.maintenance" },
+  { value: "system", label: "car.todo.source_type.system" },
 ];
 
 export const cancelReasonOptions = [
@@ -242,7 +298,7 @@ export const resourceConfigs: CarResourceConfig[] = [
         canDelete: true,
         columns: [
           { accessor: "provider", size: 130, header: "car.insurance.provider" },
-          { accessor: "type", size: 100, header: "car.insurance.type" },
+          { accessor: "type", size: 130, header: "car.insurance.type", kind: "select", options: insuranceTypeOptions },
           { accessor: "policy_number", size: 140, header: "car.insurance.policy_number" },
           { accessor: "premium", size: 100, header: "car.insurance.premium", kind: "number" },
           { accessor: "start_date", size: 120, header: "car.insurance.validity", kind: "date" },
@@ -380,7 +436,7 @@ export const resourceConfigs: CarResourceConfig[] = [
         required: true,
         relation: { resource: "scm_vehicles", labelField: "plate_number", subFields: ["brand", "model"] },
       },
-      { name: "type", title: "car.insurance.type", kind: "text" },
+      { name: "type", title: "car.insurance.type", kind: "select", options: insuranceTypeOptions },
       { name: "provider", title: "car.insurance.provider", kind: "text" },
       { name: "policy_number", title: "car.insurance.policy_number", kind: "text" },
       { name: "premium", title: "car.insurance.premium", kind: "number" },
@@ -395,7 +451,7 @@ export const resourceConfigs: CarResourceConfig[] = [
         header: "car.insurance.cover",
         composite: [
           { accessor: "provider", kind: "text", label: "car.insurance.provider" },
-          { accessor: "type", kind: "text", label: "car.insurance.type" },
+          { accessor: "type", kind: "select", options: insuranceTypeOptions, label: "car.insurance.type" },
         ],
       },
       {
@@ -601,7 +657,7 @@ export const resourceConfigs: CarResourceConfig[] = [
       { name: "license_expiry", title: "car.customer.license_expiry", kind: "date" },
       { name: "email", title: "car.customer.email", kind: "text" },
       { name: "address", title: "car.customer.address", kind: "textarea" },
-      { name: "credit_level", title: "car.customer.credit_level", kind: "text" },
+      { name: "credit_level", title: "car.customer.credit_level.label", kind: "select", options: creditLevelOptions },
       { name: "status", title: "car.customer.status.label", kind: "select", options: customerStatusOptions },
       { name: "remark", title: "car.customer.remark", kind: "textarea" },
     ],
@@ -622,7 +678,7 @@ export const resourceConfigs: CarResourceConfig[] = [
         header: "car.customer.company",
         composite: [
           { accessor: "company_name", kind: "text", label: "car.customer.company_name" },
-          { accessor: "credit_level", kind: "text", label: "car.customer.credit_level" },
+          { accessor: "credit_level", kind: "select", options: creditLevelOptions, label: "car.customer.credit_level.label" },
         ],
       },
       { accessor: "status", size: 110, header: "car.customer.status.label", kind: "select", options: customerStatusOptions },
@@ -719,7 +775,7 @@ export const resourceConfigs: CarResourceConfig[] = [
           { accessor: "amount", size: 120, header: "car.payment.amount", kind: "number" },
           { accessor: "deposit", size: 110, header: "car.payment.deposit", kind: "number" },
           { accessor: "refund", size: 110, header: "car.payment.refund", kind: "number" },
-          { accessor: "payment_method", size: 130, header: "car.payment.payment_method" },
+          { accessor: "payment_method", size: 130, header: "car.payment.payment_method", kind: "select", options: paymentMethodOptions },
           { accessor: "payment_time", size: 160, header: "car.payment.payment_time", kind: "datetime" },
           { accessor: "status", size: 120, header: "car.payment.status.label", kind: "select", options: paymentStatusOptions },
         ],
@@ -781,27 +837,8 @@ export const resourceConfigs: CarResourceConfig[] = [
     searchableFields: ["title", "description"],
     fields: [
       { name: "title", title: "car.todo.title_label", kind: "text", required: true },
-      {
-        name: "kind",
-        title: "car.todo.kind",
-        kind: "select",
-        options: [
-          { value: "overdue_return", label: "car.todo.kind.overdue_return" },
-          { value: "scm_insurance", label: "car.todo.kind.insurance" },
-          { value: "inspection", label: "car.todo.kind.inspection" },
-          { value: "maintenance", label: "car.todo.kind.maintenance" },
-          { value: "license", label: "car.todo.kind.license" },
-        ],
-      },
-      {
-        name: "status",
-        title: "car.todo.status",
-        kind: "select",
-        options: [
-          { value: "open", label: "car.todo.status.open" },
-          { value: "done", label: "car.todo.status.done" },
-        ],
-      },
+      { name: "kind", title: "car.todo.kind", kind: "select", options: todoKindOptions },
+      { name: "status", title: "car.todo.status", kind: "select", options: todoStatusOptions },
       { name: "due_date", title: "car.todo.due_date", kind: "date" },
       {
         name: "vehicle",
@@ -821,45 +858,25 @@ export const resourceConfigs: CarResourceConfig[] = [
         kind: "relation",
         relation: { resource: "scm_rental_orders", labelField: "order_no" },
       },
-      { name: "source_type", title: "car.todo.source_type", kind: "text" },
+      { name: "source_type", title: "car.todo.source_type", kind: "select", options: todoSourceTypeOptions },
       { name: "source_id", title: "car.todo.source_id", kind: "number" },
       { name: "description", title: "car.todo.description_label", kind: "textarea" },
     ],
     columns: [
-      { accessor: "title", size: 220, header: "car.todo.title_label", sortable: true },
-      {
-        accessor: "kind",
-        size: 120,
-        header: "car.todo.kind",
-        kind: "select",
-        options: [
-          { value: "overdue_return", label: "car.todo.kind.overdue_return" },
-          { value: "scm_insurance", label: "car.todo.kind.insurance" },
-          { value: "inspection", label: "car.todo.kind.inspection" },
-          { value: "maintenance", label: "car.todo.kind.maintenance" },
-          { value: "license", label: "car.todo.kind.license" },
-        ],
-      },
+      { accessor: "title", size: 200, header: "car.todo.title_label", sortable: true },
+      { accessor: "kind", size: 140, header: "car.todo.kind", kind: "select", options: todoKindOptions },
       {
         accessor: "due_date",
-        size: 150,
+        size: 174,
         header: "car.todo.deadline",
         composite: [
           { accessor: "due_date", kind: "date", label: "car.todo.due_date" },
-          {
-            accessor: "status",
-            kind: "select",
-            options: [
-              { value: "open", label: "car.todo.status.open" },
-              { value: "done", label: "car.todo.status.done" },
-            ],
-            label: "car.todo.status",
-          },
+          { accessor: "status", kind: "select", options: todoStatusOptions, label: "car.todo.status" },
         ],
       },
       {
         accessor: "vehicle",
-        size: 160,
+        size: 150,
         header: "car.todo.vehicle",
         kind: "relation",
         relation: { resource: "scm_vehicles", labelField: "plate_number" },
@@ -895,18 +912,25 @@ export const resourceConfigs: CarResourceConfig[] = [
       { name: "amount", title: "car.payment.amount", kind: "number" },
       { name: "deposit", title: "car.payment.deposit", kind: "number" },
       { name: "refund", title: "car.payment.refund", kind: "number" },
-      { name: "payment_method", title: "car.payment.payment_method", kind: "text" },
+      { name: "payment_method", title: "car.payment.payment_method", kind: "select", options: paymentMethodOptions },
       { name: "payment_time", title: "car.payment.payment_time", kind: "datetime" },
       { name: "status", title: "car.payment.status.label", kind: "select", options: paymentStatusOptions },
     ],
     columns: [
-      { accessor: "order", header: "car.payment.order", kind: "relation", relation: { resource: "scm_rental_orders", labelField: "order_no" } },
-      { accessor: "amount", header: "car.payment.amount", kind: "number" },
-      { accessor: "deposit", header: "car.payment.deposit", kind: "number" },
-      { accessor: "refund", header: "car.payment.refund", kind: "number" },
-      { accessor: "payment_method", header: "car.payment.payment_method", sortable: true },
-      { accessor: "payment_time", header: "car.payment.payment_time", kind: "datetime" },
-      { accessor: "status", header: "car.payment.status.label", kind: "select", options: paymentStatusOptions },
+      { accessor: "order", size: 190, header: "car.payment.order", kind: "relation", relation: { resource: "scm_rental_orders", labelField: "order_no" } },
+      {
+        accessor: "amount",
+        size: 160,
+        header: "car.payment.settlement",
+        composite: [
+          { accessor: "amount", kind: "number", label: "car.payment.amount" },
+          { accessor: "deposit", kind: "number", label: "car.payment.deposit" },
+        ],
+      },
+      { accessor: "refund", size: 110, header: "car.payment.refund", kind: "number" },
+      { accessor: "payment_method", size: 140, header: "car.payment.payment_method", kind: "select", options: paymentMethodOptions, sortable: true },
+      { accessor: "payment_time", size: 180, header: "car.payment.payment_time", kind: "datetime" },
+      { accessor: "status", size: 130, header: "car.payment.status.label", kind: "select", options: paymentStatusOptions },
     ],
   },
   {
@@ -949,7 +973,7 @@ export const resourceConfigs: CarResourceConfig[] = [
       { name: "name", title: "car.staff.name", kind: "text", required: true },
       { name: "position", title: "car.staff.position", kind: "text" },
       { name: "phone", title: "car.staff.phone", kind: "text" },
-      { name: "role", title: "car.staff.role", kind: "text" },
+      { name: "role", title: "car.staff.role", kind: "select", options: staffRoleOptions },
       {
         name: "branch",
         title: "car.staff.branch",
@@ -961,7 +985,7 @@ export const resourceConfigs: CarResourceConfig[] = [
       { accessor: "name", header: "car.staff.name", sortable: true },
       { accessor: "position", header: "car.staff.position" },
       { accessor: "phone", header: "car.staff.phone" },
-      { accessor: "role", header: "car.staff.role" },
+      { accessor: "role", header: "car.staff.role", kind: "select", options: staffRoleOptions },
       { accessor: "branch", header: "car.staff.branch", kind: "relation", relation: { resource: "scm_branches", labelField: "name", subFields: ["address"] } },
     ],
   },

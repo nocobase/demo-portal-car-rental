@@ -94,7 +94,14 @@ function CarValueText({
     );
   }
   if (value === null || value === undefined || value === "") return "-";
-  return String(value);
+  const text = String(value);
+  // Cells are fixed-width, so clip long text with an ellipsis and keep the
+  // full value reachable through the native tooltip.
+  return (
+    <span className="block truncate" title={text}>
+      {text}
+    </span>
+  );
 }
 
 function CarColumnCell({

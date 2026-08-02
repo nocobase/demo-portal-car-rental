@@ -75,9 +75,9 @@ export function CarStatusBadge({
 }
 
 function toneForStatus(value: string): string {
-  const active = ["available", "open", "paid", "completed", "resolved", "signed", "active"];
-  const warn = ["rented", "pending", "processing", "lead", "in_transit"];
-  const danger = ["maintenance", "cancelled", "blocked", "overdue"];
+  const active = ["available", "open", "paid", "completed", "resolved", "processed", "signed", "active", "done", "high"];
+  const warn = ["rented", "pending", "processing", "appealing", "lead", "in_transit", "renovating", "medium"];
+  const danger = ["maintenance", "cancelled", "blocked", "overdue", "scrapped", "churned", "void", "low"];
 
   if (active.includes(value)) return "text-emerald-600 dark:text-emerald-400";
   if (warn.includes(value)) return "text-amber-600 dark:text-amber-400";
@@ -86,9 +86,9 @@ function toneForStatus(value: string): string {
 }
 
 function toneDot(value: string): string {
-  const active = ["available", "open", "paid", "completed", "resolved", "signed", "active"];
-  const warn = ["rented", "pending", "processing", "lead", "in_transit"];
-  const danger = ["maintenance", "cancelled", "blocked", "overdue"];
+  const active = ["available", "open", "paid", "completed", "resolved", "processed", "signed", "active", "done", "high"];
+  const warn = ["rented", "pending", "processing", "appealing", "lead", "in_transit", "renovating", "medium"];
+  const danger = ["maintenance", "cancelled", "blocked", "overdue", "scrapped", "churned", "void", "low"];
 
   if (active.includes(value)) return "bg-emerald-500";
   if (warn.includes(value)) return "bg-amber-500";
