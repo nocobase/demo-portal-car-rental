@@ -8,10 +8,6 @@ import {
 } from "lucide-react";
 
 import { carPortalRoles } from "@/lib/car/configs";
-import { ProfitabilityPage } from "./profitability";
-import { UtilizationPage } from "./utilization";
-import { CancellationPage } from "./cancellation";
-import { CashflowPage } from "./cashflow";
 
 export const analyticsGroupRoute = {
   name: "car-analytics",
@@ -35,7 +31,10 @@ export const analyticsPageRoutes = [
   {
     name: "analytics-profitability",
     path: "/analytics/profitability",
-    element: <ProfitabilityPage />,
+    lazy: () =>
+      import("./profitability").then((module) => ({
+        default: module.ProfitabilityPage,
+      })),
     access: { roles: { anyOf: carPortalRoles } },
     resource: {
       meta: {
@@ -55,7 +54,10 @@ export const analyticsPageRoutes = [
   {
     name: "analytics-utilization",
     path: "/analytics/utilization",
-    element: <UtilizationPage />,
+    lazy: () =>
+      import("./utilization").then((module) => ({
+        default: module.UtilizationPage,
+      })),
     access: { roles: { anyOf: carPortalRoles } },
     resource: {
       meta: {
@@ -75,7 +77,10 @@ export const analyticsPageRoutes = [
   {
     name: "analytics-cancellation",
     path: "/analytics/cancellation",
-    element: <CancellationPage />,
+    lazy: () =>
+      import("./cancellation").then((module) => ({
+        default: module.CancellationPage,
+      })),
     access: { roles: { anyOf: carPortalRoles } },
     resource: {
       meta: {
@@ -95,7 +100,10 @@ export const analyticsPageRoutes = [
   {
     name: "analytics-cashflow",
     path: "/analytics/cashflow",
-    element: <CashflowPage />,
+    lazy: () =>
+      import("./cashflow").then((module) => ({
+        default: module.CashflowPage,
+      })),
     access: { roles: { anyOf: carPortalRoles } },
     resource: {
       meta: {

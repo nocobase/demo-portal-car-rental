@@ -136,7 +136,7 @@ export function CarResourceShow({
       closeLabel={translate("buttons.close", "Close")}
       closeTo={closeTo}
       nested={nestedDrawer}
-      size="wide"
+      className="lg:w-[56vw] lg:min-w-[48rem]"
       actions={
         record ? (
           <>

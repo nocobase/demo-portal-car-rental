@@ -72,6 +72,10 @@ Installed extensions live in `src/extensions` and are ordinary
 application-owned source files. Their providers, resources, routes, login
 adapters, and user-menu items are discovered automatically.
 
+Routes declared with `defineAppRoutes` can use `lazy: () => import(...)` to
+keep page modules out of the initial bundle while preserving synchronous menu,
+resource, and access metadata.
+
 Set `registryRoutesEnabled` to `false` in `src/routes.tsx` when replacing the
 bundled example navigation with application-owned routes. Installed extension
 providers, login adapters, and the `/dev` component showcases remain available.
@@ -105,7 +109,9 @@ authenticator UI.
 ```bash
 pnpm --dir sdk test
 node tests/auth-session-regression.mjs
+node tests/error-boundary-regression.mjs
 node registry/nocobase-acl/tests/acl-regression.mjs
+node registry/nocobase-ai/tests/i18n-regression.mjs
 node registry/nocobase-i18n/tests/i18n-regression.mjs
 node --experimental-strip-types --test tests/file-upload-regression.test.ts
 node registry/nocobase-mail/tests/mail-regression.mjs
@@ -114,7 +120,9 @@ node registry/nocobase-route-surfaces/tests/route-surfaces-regression.mjs
 
 Registry source checks are maintainer commands for this source repository; the
 published template contains materialized extensions instead of `registry/`.
-SDK breaking-change releases and project upgrade steps are documented in the
+Default Template source upgrades are documented in the
+[template migration guide](https://github.com/nocobase/portal-template-default/blob/main/MIGRATION.md).
+SDK API and compatibility changes are documented separately in the
 [Portal SDK migration guide](https://github.com/nocobase/portal-template-default/blob/main/sdk/MIGRATION.md).
 
 ## Learn more

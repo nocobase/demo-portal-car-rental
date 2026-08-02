@@ -1,16 +1,8 @@
-import { resolveRouteSurfaceCloseTo } from "@nocobase/portal-sdk/routing";
-import { useLocation, useParams, Navigate } from "react-router";
+import { Navigate } from "react-router";
 
-import { AccessDenied } from "@/components/access-control/access-denied";
-import { CanAccess } from "@/components/access-control/can-access";
-import { CarResourceList } from "@/components/car/car-list";
-import { CarResourceCreate, CarResourceEdit } from "@/components/car/car-form";
-import { CarResourceShow } from "@/components/car/car-show";
-import { DashboardPage } from "@/pages/dashboard";
 import {
   resourceConfigs,
   carMenuGroups,
-  resourceMap,
   carPortalRoles,
 } from "@/lib/car/configs";
 import type {
@@ -20,168 +12,97 @@ import type {
 
 const GroupRedirect = ({ to }: { to: string }) => <Navigate to={to} replace />;
 
-const CarListPage = ({ config }: { config: CarResourceConfig }) => (
-  <CanAccess
-    resource={config.name}
-    action="list"
-    fallback={<AccessDenied />}
-  >
-    <CarResourceList key={`list-${config.name}`} config={config} />
-  </CanAccess>
-);
-
-const CarCreatePage = ({ config }: { config: CarResourceConfig }) => (
-  <CanAccess
-    resource={config.name}
-    action="create"
-    fallback={<AccessDenied />}
-  >
-    <CarResourceCreate config={config} />
-  </CanAccess>
-);
-
-const CarEditPage = ({ config }: { config: CarResourceConfig }) => (
-  <CanAccess
-    resource={config.name}
-    action="update"
-    fallback={<AccessDenied />}
-  >
-    <CarResourceEdit config={config} />
-  </CanAccess>
-);
-
-const CarShowPage = ({ config }: { config: CarResourceConfig }) => (
-  <CanAccess
-    resource={config.name}
-    action="view"
-    fallback={<AccessDenied />}
-  >
-    <CarResourceShow config={config} />
-  </CanAccess>
-);
-
-// Related-content surfaces stay under the host show page as contextual child
-// routes. Their close target resolves from the SDK navigation state (which
-// preserves the complete opening URL) or falls back to the host show URL.
-const hostShowUrl = (config: CarResourceConfig, id?: string) =>
-  `/${config.name}/show/${id ?? ""}`;
-
-function useRelatedCloseTo(config: CarResourceConfig) {
-  const location = useLocation();
-  const { id } = useParams<{ id: string }>();
-  return resolveRouteSurfaceCloseTo(location.state, {
-    pathname: hostShowUrl(config, id),
-  });
-}
-
-const CarRelatedShowPage = ({
-  config,
-  related,
-}: {
-  config: CarResourceConfig;
-  related: CarRelatedConfig;
-}) => {
-  const relatedConfig = resourceMap.get(related.resource);
-  const { rid } = useParams<{ rid: string }>();
-  if (!relatedConfig) return null;
-  return (
-    <CanAccess
-      resource={related.resource}
-      action="view"
-      fallback={<AccessDenied />}
-    >
-      <CarResourceShow
-        config={relatedConfig}
-        id={rid}
-        closeTo={useRelatedCloseTo(config)}
-      />
-    </CanAccess>
-  );
+const lazyCarListPage = (config: CarResourceConfig) => async () => {
+  const { CarListPage } = await import("./route-components");
+  return {
+    default: function CarListRoute() {
+      return <CarListPage config={config} />;
+    },
+  };
 };
 
-const CarRelatedEditPage = ({
-  config,
-  related,
-}: {
-  config: CarResourceConfig;
-  related: CarRelatedConfig;
-}) => {
-  const relatedConfig = resourceMap.get(related.resource);
-  const { rid } = useParams<{ rid: string }>();
-  if (!relatedConfig) return null;
-  return (
-    <CanAccess
-      resource={related.resource}
-      action="update"
-      fallback={<AccessDenied />}
-    >
-      <CarResourceEdit
-        config={relatedConfig}
-        id={rid}
-        closeTo={useRelatedCloseTo(config)}
-      />
-    </CanAccess>
-  );
+const lazyCarCreatePage = (config: CarResourceConfig) => async () => {
+  const { CarCreatePage } = await import("./route-components");
+  return {
+    default: function CarCreateRoute() {
+      return <CarCreatePage config={config} />;
+    },
+  };
 };
 
-// Edit hosted under a related record's show drawer. Closing returns to the
-// related show surface (the route that hosts this nested editor).
-const CarRelatedShowEditPage = ({
-  config,
-  related,
-}: {
-  config: CarResourceConfig;
-  related: CarRelatedConfig;
-}) => {
-  const relatedConfig = resourceMap.get(related.resource);
-  const { id, rid } = useParams<{ id: string; rid: string }>();
-  if (!relatedConfig) return null;
-  return (
-    <CanAccess
-      resource={related.resource}
-      action="update"
-      fallback={<AccessDenied />}
-    >
-      <CarResourceEdit
-        config={relatedConfig}
-        id={rid}
-        closeTo={`/${config.name}/show/${id}/${related.resource}/show/${rid}`}
-      />
-    </CanAccess>
-  );
+const lazyCarEditPage = (config: CarResourceConfig) => async () => {
+  const { CarEditPage } = await import("./route-components");
+  return {
+    default: function CarEditRoute() {
+      return <CarEditPage config={config} />;
+    },
+  };
 };
 
-const CarRelatedCreatePage = ({
-  config,
-  related,
-}: {
-  config: CarResourceConfig;
-  related: CarRelatedConfig;
-}) => {
-  const relatedConfig = resourceMap.get(related.resource);
-  const { id } = useParams<{ id: string }>();
-  if (!relatedConfig) return null;
-  return (
-    <CanAccess
-      resource={related.resource}
-      action="create"
-      fallback={<AccessDenied />}
-    >
-      <CarResourceCreate
-        config={relatedConfig}
-        closeTo={useRelatedCloseTo(config)}
-        initialValues={{
-          [related.filterField.replace(/Id$/, "")]: id,
-        }}
-      />
-    </CanAccess>
-  );
+const lazyCarShowPage = (config: CarResourceConfig) => async () => {
+  const { CarShowPage } = await import("./route-components");
+  return {
+    default: function CarShowRoute() {
+      return <CarShowPage config={config} />;
+    },
+  };
+};
+
+const lazyCarRelatedCreatePage = (
+  config: CarResourceConfig,
+  related: CarRelatedConfig
+) => async () => {
+  const { CarRelatedCreatePage } = await import("./route-components");
+  return {
+    default: function CarRelatedCreateRoute() {
+      return <CarRelatedCreatePage config={config} related={related} />;
+    },
+  };
+};
+
+const lazyCarRelatedEditPage = (
+  config: CarResourceConfig,
+  related: CarRelatedConfig
+) => async () => {
+  const { CarRelatedEditPage } = await import("./route-components");
+  return {
+    default: function CarRelatedEditRoute() {
+      return <CarRelatedEditPage config={config} related={related} />;
+    },
+  };
+};
+
+const lazyCarRelatedShowPage = (
+  config: CarResourceConfig,
+  related: CarRelatedConfig
+) => async () => {
+  const { CarRelatedShowPage } = await import("./route-components");
+  return {
+    default: function CarRelatedShowRoute() {
+      return <CarRelatedShowPage config={config} related={related} />;
+    },
+  };
+};
+
+const lazyCarRelatedShowEditPage = (
+  config: CarResourceConfig,
+  related: CarRelatedConfig
+) => async () => {
+  const { CarRelatedShowEditPage } = await import("./route-components");
+  return {
+    default: function CarRelatedShowEditRoute() {
+      return <CarRelatedShowEditPage config={config} related={related} />;
+    },
+  };
 };
 
 export const dashboardRoute = {
   name: "dashboard",
   path: "/dashboard",
-  element: <DashboardPage />,
+  lazy: () =>
+    import("@/pages/dashboard").then((module) => ({
+      default: module.DashboardPage,
+    })),
   access: { roles: { anyOf: carPortalRoles } },
   resource: {
     meta: {
@@ -217,7 +138,7 @@ export const carGroupRoutes = carMenuGroups.map((group) => ({
 export const carResourceRoutes = resourceConfigs.map((config) => ({
   name: config.name,
   path: `/${config.name}`,
-  element: <CarListPage config={config} />,
+  lazy: lazyCarListPage(config),
   resource: {
     meta: {
       label: config.titleKey,
@@ -237,49 +158,45 @@ export const carResourceRoutes = resourceConfigs.map((config) => ({
       name: `${config.name}.create`,
       path: "create",
       resourceAction: "create" as const,
-      element: <CarCreatePage config={config} />,
+      lazy: lazyCarCreatePage(config),
     },
     {
       name: `${config.name}.edit`,
       path: "edit/:id",
       resourceAction: "edit" as const,
-      element: <CarEditPage config={config} />,
+      lazy: lazyCarEditPage(config),
     },
     {
       name: `${config.name}.show`,
       path: "show/:id",
       resourceAction: "show" as const,
-      element: <CarShowPage config={config} />,
+      lazy: lazyCarShowPage(config),
       children: [
         {
           name: `${config.name}.show.edit`,
           path: "edit",
-          element: <CarEditPage config={config} />,
+          lazy: lazyCarEditPage(config),
         },
         ...(config.related ?? []).flatMap((related) => [
           {
             name: `${config.name}.show.${related.resource}.create`,
             path: `${related.resource}/create`,
-            element: (
-              <CarRelatedCreatePage config={config} related={related} />
-            ),
+            lazy: lazyCarRelatedCreatePage(config, related),
           },
           {
             name: `${config.name}.show.${related.resource}.edit`,
             path: `${related.resource}/edit/:rid`,
-            element: <CarRelatedEditPage config={config} related={related} />,
+            lazy: lazyCarRelatedEditPage(config, related),
           },
           {
             name: `${config.name}.show.${related.resource}.show`,
             path: `${related.resource}/show/:rid`,
-            element: <CarRelatedShowPage config={config} related={related} />,
+            lazy: lazyCarRelatedShowPage(config, related),
             children: [
               {
                 name: `${config.name}.show.${related.resource}.show.edit`,
                 path: "edit",
-                element: (
-                  <CarRelatedShowEditPage config={config} related={related} />
-                ),
+                lazy: lazyCarRelatedShowEditPage(config, related),
               },
             ],
           },
