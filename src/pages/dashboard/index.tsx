@@ -27,6 +27,7 @@ import {
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { BuildStoryBanner, type BuildStory } from "@/components/build-story/build-story-banner";
 import { cn } from "@/lib/utils";
 import { useAIPageElementHandle } from "@/lib/car/ai";
 import { resolveCarLabel } from "@/lib/car/labels";
@@ -58,6 +59,66 @@ const orderStatusOptions = resourceConfigs.find(
 const currentMonth = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const BUILD_STORY: BuildStory = {
+  models: ["DeepSeek V4 Flash 0731"],
+  intro: {
+    en: "Fleet rental operations — vehicles, orders, contracts, dispatch, violations.",
+    zh: "车队租赁运营 —— 车辆、订单、合同、调度、违章。",
+  },
+  tracks: [
+    {
+      label: { en: "Data model — vehicles, orders, contracts", zh: "数据建模 — 车辆/订单/合同" },
+      models: ["DeepSeek V4 Flash 0731"],
+      start: 0,
+      minutes: 15,
+    },
+    {
+      label: { en: "Pages — dashboard, fleet, orders, analytics", zh: "页面 — 工作台/车队/订单/分析" },
+      models: ["DeepSeek V4 Flash 0731"],
+      start: 15,
+      minutes: 25,
+    },
+    {
+      label: { en: "Wire-up & polish", zh: "联调与打磨" },
+      models: ["DeepSeek V4 Flash 0731"],
+      start: 40,
+      minutes: 10,
+    },
+  ],
+  roles: [
+    {
+      name: { en: "Car Rental Admin", zh: "车队管理员" },
+      can: { en: "Full access to fleet, orders, contracts", zh: "车队/订单/合同全权限" },
+      account: "car_admin_demo@scm.demo",
+      password: "demo123456",
+    },
+    {
+      name: { en: "Fleet Operator", zh: "车队调度" },
+      can: { en: "Vehicles, dispatch, maintenance", zh: "车辆、调度、保养" },
+      account: "fleet_operator_demo@scm.demo",
+      password: "demo123456",
+    },
+    {
+      name: { en: "Front Desk", zh: "前台" },
+      can: { en: "Customers, orders, contracts", zh: "客户、订单、合同" },
+      account: "front_desk_demo@scm.demo",
+      password: "demo123456",
+    },
+    {
+      name: { en: "Finance", zh: "财务" },
+      can: { en: "Payments, contracts, read-all", zh: "收款、合同、只读全局" },
+      account: "finance_demo@scm.demo",
+      password: "demo123456",
+    },
+    {
+      name: { en: "Viewer", zh: "只读" },
+      can: { en: "Read-only across the app", zh: "全应用只读" },
+      account: "viewer_demo@scm.demo",
+      password: "demo123456",
+    },
+  ],
 };
 
 export function DashboardPage() {
@@ -131,6 +192,7 @@ export function DashboardPage() {
 
   return (
     <div ref={context.ref} className="flex flex-col gap-6">
+      <BuildStoryBanner story={BUILD_STORY} />
       <div>
         <h2 className="text-3xl font-semibold tracking-[-0.035em]">
           {translate("car.dashboard.title", { ns: "car" }, "Dashboard")}
