@@ -23,11 +23,10 @@ const vehicleStatusOptions = [
   { value: "available", label: "car.vehicle.status.available" },
   { value: "rented", label: "car.vehicle.status.rented" },
   { value: "maintenance", label: "car.vehicle.status.maintenance" },
-  { value: "retired", label: "car.vehicle.status.retired" },
   { value: "scrapped", label: "car.vehicle.status.scrapped" },
 ];
 
-const orderStatusOptions = [
+export const orderStatusOptions = [
   { value: "reserved", label: "car.order.status.reserved" },
   { value: "ongoing", label: "car.order.status.ongoing" },
   { value: "completed", label: "car.order.status.completed" },
@@ -42,10 +41,8 @@ const paymentStatusOptions = [
 
 const violationStatusOptions = [
   { value: "pending", label: "car.violation.status.pending" },
-  { value: "processing", label: "car.violation.status.processing" },
   { value: "appealing", label: "car.violation.status.appealing" },
   { value: "processed", label: "car.violation.status.processed" },
-  { value: "resolved", label: "car.violation.status.resolved" },
 ];
 
 const dispatchStatusOptions = [
@@ -64,7 +61,6 @@ const customerStatusOptions = [
   { value: "lead", label: "car.customer.status.lead" },
   { value: "active", label: "car.customer.status.active" },
   { value: "churned", label: "car.customer.status.churned" },
-  { value: "blocked", label: "car.customer.status.blocked" },
 ];
 
 const customerTypeOptions = [
@@ -89,7 +85,6 @@ const contractStatusOptions = [
 
 const maintenanceTypeOptions = [
   { value: "service", label: "car.maintenance.type.service" },
-  { value: "maintenance", label: "car.maintenance.type.maintenance" },
   { value: "repair", label: "car.maintenance.type.repair" },
   { value: "inspection", label: "car.maintenance.type.inspection" },
 ];

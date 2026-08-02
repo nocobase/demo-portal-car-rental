@@ -31,7 +31,7 @@ import { BuildStoryBanner, type BuildStory } from "@/components/build-story/buil
 import { cn } from "@/lib/utils";
 import { useAIPageElementHandle } from "@/lib/car/ai";
 import { resolveCarLabel } from "@/lib/car/labels";
-import { resourceConfigs } from "@/lib/car/configs";
+import { orderStatusOptions } from "@/lib/car/configs";
 import {
   useCarKpis,
   useCurrentMonthRevenue,
@@ -51,10 +51,6 @@ import { AIChatWindow, ChatInline, AIEmployeeShortcut } from "@/extensions/nocob
 import { useAIChatController } from "@/extensions/nocobase-ai";
 import { AIEmployeeTask, type AIWorkContextItem } from "@/extensions/nocobase-ai";
 import { pickBusinessAIEmployee } from "@/lib/car/ai";
-
-const orderStatusOptions = resourceConfigs.find(
-  (config) => config.name === "scm_rental_orders"
-)?.columns.find((column) => column.accessor === "status")?.options;
 
 const currentMonth = () => {
   const now = new Date();
