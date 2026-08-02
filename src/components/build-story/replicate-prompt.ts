@@ -9,10 +9,6 @@ export function buildReplicatePrompt() {
 What it is: a vehicle rental operation: a fleet with categories, insurance, maintenance and dispatch, customers with licences, rental orders and contracts, payments, violations and branch/staff master data.
 
 Data model (collection - purpose; key fields):
-  analytics - analytics
-      fields: 
-  dashboard - dashboard
-      fields: 
   scm_branches - branches
       fields: status (open|closed|renovating), address, name, phone, business_hours
       relations: vehicles -> scm_vehicles, dispatch_out -> scm_dispatch, staff -> scm_staff, dispatch_in -> scm_dispatch
