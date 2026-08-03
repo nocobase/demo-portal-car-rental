@@ -60,8 +60,8 @@ const currentMonth = () => {
 const BUILD_STORY: BuildStory = {
   models: ["DeepSeek V4 Flash 0731"],
   intro: {
-    en: "Fleet rental operations — vehicles, orders, contracts, dispatch, violations.",
-    zh: "车队租赁运营 —— 车辆、订单、合同、调度、违章。",
+    en: "A car rental management system — vehicles, bookings, contracts, returns and violations, with a clear view of which cars are free and which are still out. This whole system was designed and built end-to-end by an AI coding agent. You can connect your own coding agent and keep developing it.",
+    zh: "租车业务的管理系统:车辆、订单、合同、还车、违章都能管,哪台车空着、哪台还在外面一清二楚。整套系统从设计到实现,都由 AI coding agent 完成。你可以接入你的 Coding Agent,继续开发它。",
   },
   tracks: [
     {
