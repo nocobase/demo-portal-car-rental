@@ -1,5 +1,5 @@
 export const starter = {
-  "shell.workspace": "AI application workspace",
+  "shell.workspace": "Car Rental",
   "shell.settings": "Settings",
   "shell.footer.freedom": "AI builds freely.",
   "shell.footer.reliabilitySuffix": "keeps it reliable.",

@@ -431,7 +431,7 @@ export const car = {
 } as const;
 
 export const starter = {
-  "shell.workspace": "พื้นที่ทำงานของแอปพลิเคชัน AI",
+  "shell.workspace": "Car Rental",
   "shell.settings": "การตั้งค่า",
   "shell.footer.freedom": "AI สร้างสรรค์ได้อย่างอิสระ.",
   "shell.footer.reliabilitySuffix": "ทำให้เชื่อถือได้.",
