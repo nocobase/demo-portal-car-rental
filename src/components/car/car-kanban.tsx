@@ -10,7 +10,10 @@ import {
 } from "@/components/car/value";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { CarResourceConfig } from "@/lib/car/types";
+import {
+  hasGenericEditFields,
+  type CarResourceConfig,
+} from "@/lib/car/types";
 
 const getNestedValue = (
   record: Record<string, unknown>,
@@ -45,6 +48,9 @@ export function CarKanbanView({
     config.boardOptions ??
     config.fields.find((field) => field.name === boardField)?.options ??
     [];
+  const boardFieldIsDomain =
+    config.fields.find((field) => field.name === boardField)?.mutability ===
+    "domain";
 
   const { result } = useList<Record<string, unknown>>({
     resource: config.name,
@@ -93,7 +99,7 @@ export function CarKanbanView({
                   {column.items.length}
                 </span>
               </div>
-              {config.canCreate !== false ? (
+              {config.canCreate !== false && !boardFieldIsDomain ? (
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -205,6 +211,7 @@ function KanbanCard({
             >
               <Eye />
             </Button>
+            {hasGenericEditFields(config) ? (
             <Button
               variant="ghost"
               size="icon-xs"
@@ -214,6 +221,7 @@ function KanbanCard({
             >
               <Pencil />
             </Button>
+            ) : null}
             {config.canDelete !== false ? (
               <DeleteButton
                 resource={config.name}

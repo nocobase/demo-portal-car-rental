@@ -7,7 +7,11 @@ import { CarResourceList } from "@/components/car/car-list";
 import { CarResourceCreate, CarResourceEdit } from "@/components/car/car-form";
 import { CarResourceShow } from "@/components/car/car-show";
 import { resourceMap } from "@/lib/car/configs";
-import type { CarRelatedConfig, CarResourceConfig } from "@/lib/car/types";
+import {
+  hasGenericEditFields,
+  type CarRelatedConfig,
+  type CarResourceConfig,
+} from "@/lib/car/types";
 
 export function CarListPage({ config }: { config: CarResourceConfig }) {
   return (
@@ -34,6 +38,7 @@ export function CarCreatePage({ config }: { config: CarResourceConfig }) {
 }
 
 export function CarEditPage({ config }: { config: CarResourceConfig }) {
+  if (!hasGenericEditFields(config)) return <AccessDenied />;
   return (
     <CanAccess
       resource={config.name}
@@ -106,6 +111,7 @@ export function CarRelatedEditPage({
   const relatedConfig = resourceMap.get(related.resource);
   const { rid } = useParams<{ rid: string }>();
   if (!relatedConfig) return null;
+  if (!hasGenericEditFields(relatedConfig)) return <AccessDenied />;
   return (
     <CanAccess
       resource={related.resource}
@@ -133,6 +139,7 @@ export function CarRelatedShowEditPage({
   const relatedConfig = resourceMap.get(related.resource);
   const { id, rid } = useParams<{ id: string; rid: string }>();
   if (!relatedConfig) return null;
+  if (!hasGenericEditFields(relatedConfig)) return <AccessDenied />;
   return (
     <CanAccess
       resource={related.resource}

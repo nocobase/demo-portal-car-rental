@@ -29,6 +29,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { resolveCarLabel } from "@/lib/car/labels";
+import { resourceMap } from "@/lib/car/configs";
+import { hasGenericEditFields } from "@/lib/car/types";
 import type { CarColumnConfig, CarRelatedConfig, CarResourceConfig } from "@/lib/car/types";
 
 const getNestedValue = (
@@ -151,6 +153,7 @@ function RelatedPanel({
   const location = useLocation();
 
   const title = resolveCarLabel(related.titleKey, related.resource, translate);
+  const relatedConfig = resourceMap.get(related.resource);
 
   const openContextual = (to: string) =>
     navigate(to, { state: createRouteSurfaceNavigationState(location) });
@@ -233,6 +236,7 @@ function RelatedPanel({
                   ))}
                   <TableCell style={{ width: 144 }}>
                     <div className="flex items-center gap-1">
+                      {relatedConfig && hasGenericEditFields(relatedConfig) ? (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -246,6 +250,7 @@ function RelatedPanel({
                       >
                         <Pencil />
                       </Button>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="icon"

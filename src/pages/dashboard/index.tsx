@@ -9,13 +9,17 @@ import {
   Clock4,
   Gauge,
   HandCoins,
+  KeyRound,
   Sparkles,
   TrendingDown,
+  Undo2,
   WalletCards,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -35,11 +39,18 @@ import { orderStatusOptions } from "@/lib/car/configs";
 import {
   useCarKpis,
   useCurrentMonthRevenue,
+  useMonthlyRevenue,
   useOrderStatusChart,
   useTodayReturns,
   useTopCustomers,
   useTopModels,
 } from "@/lib/car/queries";
+import {
+  startOfDay,
+  useRentalDesk,
+  useRevenueComposition,
+  type RevenueSlice,
+} from "@/lib/car/operations";
 import {
   useCashflow,
   useCancellation,
@@ -126,6 +137,28 @@ export function DashboardPage() {
   const monthRevenue = useCurrentMonthRevenue();
   const topModels = useTopModels();
   const topCustomers = useTopCustomers();
+  const monthlyRevenue = useMonthlyRevenue();
+  const composition = useRevenueComposition();
+  const [trendMonths, setTrendMonths] = useState(12);
+
+  const trendData = useMemo(() => {
+    const rows = (monthlyRevenue.data ?? [])
+      .map((row) => ({
+        month: String(row.month ?? ""),
+        revenue: Number(row.revenue ?? 0),
+      }))
+      .filter((row) => row.month);
+    return rows.slice(-trendMonths);
+  }, [monthlyRevenue.data, trendMonths]);
+
+  // Month on month uses the two most recent complete points in the series.
+  const trendDelta = useMemo(() => {
+    if (trendData.length < 2) return null;
+    const previous = trendData[trendData.length - 2]?.revenue ?? 0;
+    const latest = trendData[trendData.length - 1]?.revenue ?? 0;
+    if (!previous) return null;
+    return (latest - previous) / previous;
+  }, [trendData]);
 
   const profitability = useProfitabilitySummary();
   const utilization = useUtilization(currentMonth());
@@ -209,6 +242,9 @@ export function DashboardPage() {
           icon={<Clock4 className="size-4" />}
           label={translate("car.dashboard.kpi.ongoing", { ns: "car" }, "Ongoing orders")}
           value={String(kpis.data?.ongoingOrders ?? "-")}
+          onClick={() =>
+            navigate(statusDrillUrl("scm_rental_orders", "status", "ongoing"))
+          }
         />
         <KpiCard
           icon={<CalendarClock className="size-4" />}
@@ -219,6 +255,7 @@ export function DashboardPage() {
             { ns: "car" },
             "Expected returns"
           )}
+          onClick={() => navigate("/rental-desk")}
         />
         <KpiCard
           icon={<CarFront className="size-4" />}
@@ -229,6 +266,9 @@ export function DashboardPage() {
             { ns: "car" },
             "Ready to rent"
           )}
+          onClick={() =>
+            navigate(statusDrillUrl("scm_vehicles", "status", "available"))
+          }
         />
         <KpiCard
           icon={<CircleDollarSign className="size-4" />}
@@ -237,7 +277,7 @@ export function DashboardPage() {
           hint={translate(
             "car.dashboard.kpi.monthRevenueHint",
             { ns: "car" },
-            "Current month payments"
+            "Paid month-to-date"
           )}
         />
       </div>
@@ -303,32 +343,447 @@ export function DashboardPage() {
         />
       </div>
 
+      <TodayAtTheCounter />
+
       <Card className="gap-0">
-        <CardHeader className="border-b py-4">
-          <CardTitle>
-            {translate("car.dashboard.ordersByStatus", { ns: "car" }, "Orders by status")}
-          </CardTitle>
-          <CardDescription>
-            {translate(
-              "car.dashboard.ordersByStatusDescription",
-              { ns: "car" },
-              "Current rental order distribution"
-            )}
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 border-b py-4">
+          <div className="space-y-1">
+            <CardTitle>
+              {translate("car.dashboard.revenueTrend", { ns: "car" }, "Revenue trend")}
+            </CardTitle>
+            <CardDescription>
+              {translate(
+                "car.dashboard.revenueTrendDescription",
+                { ns: "car" },
+                "Settled payments per month"
+              )}
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-1">
+            {TREND_RANGES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setTrendMonths(option)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  trendMonths === option
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50"
+                )}
+              >
+                {translate(
+                  "car.dashboard.trendMonths",
+                  { ns: "car" },
+                  "{{count}}m"
+                ).replace("{{count}}", String(option))}
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="h-72 py-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={orderData}>
+            <AreaChart data={trendData}>
+              <defs>
+                <linearGradient id="car-revenue-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-              <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} width={28} />
-              <Tooltip />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="var(--primary)" />
-            </BarChart>
+              <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={54}
+                tickFormatter={(value: number) => compactNumber(value)}
+              />
+              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                stroke="var(--primary)"
+                strokeWidth={2}
+                fill="url(#car-revenue-fill)"
+              />
+            </AreaChart>
           </ResponsiveContainer>
         </CardContent>
+        {trendDelta !== null ? (
+          <div className="border-t px-5 py-3 text-xs text-muted-foreground">
+            {translate(
+              "car.dashboard.trendDelta",
+              { ns: "car" },
+              "Month on month"
+            )}
+            :{" "}
+            <span
+              className={cn(
+                "font-semibold tabular-nums",
+                trendDelta >= 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              )}
+            >
+              {trendDelta >= 0 ? "+" : ""}
+              {(trendDelta * 100).toFixed(1)}%
+            </span>
+          </div>
+        ) : null}
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="gap-0">
+          <CardHeader className="border-b py-4">
+            <CardTitle>
+              {translate("car.dashboard.ordersByStatus", { ns: "car" }, "Orders by status")}
+            </CardTitle>
+            <CardDescription>
+              {translate(
+                "car.dashboard.ordersByStatusDescription",
+                { ns: "car" },
+                "Current rental order distribution"
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-72 py-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={orderData}
+                onClick={(state) => {
+                  const payload = (
+                    state as {
+                      activePayload?: Array<{ payload?: { raw?: unknown } }>;
+                    }
+                  )?.activePayload;
+                  const raw = payload?.[0]?.payload?.raw;
+                  if (raw) {
+                    navigate(statusDrillUrl("scm_rental_orders", "status", String(raw)));
+                  }
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} width={28} />
+                <Tooltip cursor={{ fill: "var(--accent)", opacity: 0.4 }} />
+                <Bar
+                  dataKey="value"
+                  radius={[4, 4, 0, 0]}
+                  fill="var(--primary)"
+                  className="cursor-pointer"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+          <div className="border-t px-5 py-2 text-xs text-muted-foreground">
+            {translate(
+              "car.dashboard.clickToDrill",
+              { ns: "car" },
+              "Click a bar to open the matching records."
+            )}
+          </div>
+        </Card>
+
+        <Card className="gap-0">
+          <CardHeader className="border-b py-4">
+            <CardTitle>
+              {translate("car.dashboard.byBranch", { ns: "car" }, "Revenue by branch")}
+            </CardTitle>
+            <CardDescription>
+              {translate(
+                "car.dashboard.byBranchDescription",
+                { ns: "car" },
+                "Where the money is earned, and by which vehicle class"
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 py-4">
+            <CompositionList
+              rows={composition.data?.byBranch ?? []}
+              isLoading={composition.isLoading}
+              emptyLabel={translate(
+                "car.dashboard.noComposition",
+                { ns: "car" },
+                "No settled rentals yet."
+              )}
+            />
+            <div className="border-t pt-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {translate("car.dashboard.byCategory", { ns: "car" }, "By vehicle class")}
+              </p>
+              <CompositionList
+                rows={(composition.data?.byCategory ?? []).slice(0, 5)}
+                isLoading={composition.isLoading}
+                emptyLabel=""
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <RankingCard
+          title={translate("car.dashboard.topModels", { ns: "car" }, "Top models")}
+          description={translate(
+            "car.dashboard.topModelsDescription",
+            { ns: "car" },
+            "Highest earning models across all rentals"
+          )}
+          rows={(topModels.data ?? []).map((row) => ({
+            label: String(row.model ?? "—"),
+            primary: formatCurrency(Number(row.revenue ?? 0)),
+            secondary: translate(
+              "car.dashboard.orderCount",
+              { ns: "car" },
+              "{{count}} rentals"
+            ).replace("{{count}}", String(row.order_count ?? 0)),
+          }))}
+          isLoading={topModels.isLoading}
+          onOpen={() => navigate("/analytics/profitability")}
+        />
+        <RankingCard
+          title={translate("car.dashboard.topCustomers", { ns: "car" }, "Top customers")}
+          description={translate(
+            "car.dashboard.topCustomersDescription",
+            { ns: "car" },
+            "Accounts with the largest lifetime spend"
+          )}
+          rows={(topCustomers.data ?? []).map((row) => ({
+            label: String(row.customer ?? "—"),
+            primary: formatCurrency(Number(row.revenue ?? 0)),
+            secondary: translate(
+              "car.dashboard.orderCount",
+              { ns: "car" },
+              "{{count}} rentals"
+            ).replace("{{count}}", String(row.order_count ?? 0)),
+          }))}
+          isLoading={topCustomers.isLoading}
+          onOpen={() => navigate("/scm_customers")}
+        />
+      </div>
     </div>
+  );
+}
+
+const TREND_RANGES = [6, 12];
+
+/** Deep link into a list page with the status filter pre-applied. */
+function statusDrillUrl(resource: string, field: string, value: string): string {
+  const state = encodeURIComponent(
+    JSON.stringify({ filters: [{ id: field, value }], sorting: [] })
+  );
+  return `/${resource}?layout=table&view=${state}`;
+}
+
+function compactNumber(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+/** The counter's outstanding work, summarised straight on the landing page. */
+function TodayAtTheCounter() {
+  const translate = useTranslate();
+  const navigate = useNavigate();
+  const desk = useRentalDesk(startOfDay(new Date()));
+  const data = desk.data;
+
+  const tiles = [
+    {
+      key: "pickups",
+      icon: <KeyRound className="size-4" />,
+      label: translate("car.desk.kpi.pickups", { ns: "car" }, "Handovers due"),
+      value: data?.pickups.length ?? 0,
+    },
+    {
+      key: "returns",
+      icon: <Undo2 className="size-4" />,
+      label: translate("car.desk.kpi.returns", { ns: "car" }, "Returns due"),
+      value: data?.returns.length ?? 0,
+    },
+    {
+      key: "overdue",
+      icon: <AlertTriangle className="size-4" />,
+      label: translate("car.desk.kpi.overdue", { ns: "car" }, "Overdue on road"),
+      value: data?.overdue.length ?? 0,
+      warn: (data?.overdue.length ?? 0) > 0,
+    },
+    {
+      key: "receivable",
+      icon: <WalletCards className="size-4" />,
+      label: translate("car.desk.kpi.receivable", { ns: "car" }, "Open balances"),
+      value: data?.receivables.length ?? 0,
+      warn: (data?.receivables.length ?? 0) > 0,
+    },
+  ];
+
+  return (
+    <Card className="gap-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b py-4">
+        <div className="space-y-1">
+          <CardTitle>
+            {translate("car.dashboard.today.title", { ns: "car" }, "Today at the counter")}
+          </CardTitle>
+          <CardDescription>
+            {translate(
+              "car.dashboard.today.description",
+              { ns: "car" },
+              "Open the rental desk to work through the queues."
+            )}
+          </CardDescription>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/rental-desk")}
+          className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent"
+        >
+          {translate("car.dashboard.today.open", { ns: "car" }, "Open rental desk")}
+        </button>
+      </CardHeader>
+      <CardContent className="grid gap-3 py-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tiles.map((tile) => (
+          <button
+            key={tile.key}
+            type="button"
+            onClick={() => navigate("/rental-desk")}
+            className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 text-primary">
+              {tile.icon}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-xs text-muted-foreground">
+                {tile.label}
+              </span>
+              <span
+                className={cn(
+                  "block text-xl font-semibold tabular-nums",
+                  tile.warn && "text-amber-600 dark:text-amber-400"
+                )}
+              >
+                {desk.isLoading ? "—" : tile.value}
+              </span>
+            </span>
+          </button>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompositionList({
+  rows,
+  isLoading,
+  emptyLabel,
+}: {
+  rows: RevenueSlice[];
+  isLoading: boolean;
+  emptyLabel: string;
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="h-6 animate-pulse rounded bg-muted" />
+        ))}
+      </div>
+    );
+  }
+  if (!rows.length) {
+    return emptyLabel ? (
+      <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+    ) : null;
+  }
+  const max = Math.max(...rows.map((row) => row.revenue), 1);
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.key} className="space-y-1">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="truncate">{row.label}</span>
+            <span className="shrink-0 font-medium tabular-nums">
+              {formatCurrency(row.revenue)}
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary/70"
+              style={{ width: `${(row.revenue / max) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RankingCard({
+  title,
+  description,
+  rows,
+  isLoading,
+  onOpen,
+}: {
+  title: string;
+  description: string;
+  rows: Array<{ label: string; primary: string; secondary: string }>;
+  isLoading: boolean;
+  onOpen: () => void;
+}) {
+  const translate = useTranslate();
+  return (
+    <Card className="gap-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b py-4">
+        <div className="space-y-1">
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent"
+        >
+          {translate("car.dashboard.viewAll", { ns: "car" }, "View all")}
+        </button>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="h-8 animate-pulse rounded bg-muted" />
+            ))}
+          </div>
+        ) : !rows.length ? (
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+            {translate("car.dashboard.noRanking", { ns: "car" }, "Not enough data yet.")}
+          </p>
+        ) : (
+          <ol className="divide-y">
+            {rows.map((row, index) => (
+              <li
+                key={`${row.label}-${index}`}
+                className="flex items-center gap-3 px-5 py-2.5"
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold tabular-nums">
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-sm font-semibold tabular-nums">
+                    {row.primary}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {row.secondary}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -439,7 +894,7 @@ function DashboardAssistant({
                       "AI assistant"
                     )}
                     <span className="rounded-full border bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {translate("car.ai.collapsed", { ns: "car" }, "点击展开")}
+                      {translate("car.ai.collapsed", { ns: "car" }, "Click to expand")}
                     </span>
                   </CardTitle>
                   <CardDescription className="truncate text-xs">
@@ -491,14 +946,27 @@ function KpiCard({
   label,
   value,
   hint,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
+  onClick?: () => void;
 }) {
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <KpiCard icon={icon} label={label} value={value} hint={hint} />
+      </button>
+    );
+  }
   return (
-    <Card className="car-kpi-card gap-0">
+    <Card className="car-kpi-card gap-0 transition-colors hover:border-primary/40">
       <CardContent className="flex items-center gap-4 py-4">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 text-primary">
           {icon}

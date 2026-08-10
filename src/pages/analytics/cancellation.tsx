@@ -1,10 +1,12 @@
 import { useTranslate } from "@refinedev/core";
-import { AlertTriangle, Ban, ClipboardX, Percent } from "lucide-react";
-import { useMemo } from "react";
+import { AlertTriangle, Ban, ClipboardX, Percent, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,6 +14,7 @@ import {
 } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -31,12 +34,25 @@ import {
   AnalyticsPageHeader,
   useAnalyticsAIContext,
 } from "./shared";
+import {
+  AnalyticsExportButton,
+  AnalyticsStates,
+  exportAnalyticsCsv,
+} from "./toolbar";
 
 const HIGH_RATE_THRESHOLD = 0.25;
 
+type SegmentFilter = {
+  dimension: "customerType" | "category";
+  key: string;
+  label: string;
+};
+
 export function CancellationPage() {
   const translate = useTranslate();
-  const { data, isLoading } = useCancellation();
+  const navigate = useNavigate();
+  const [segmentFilter, setSegmentFilter] = useState<SegmentFilter | null>(null);
+  const { data, isLoading, isError, refetch } = useCancellation();
   const analysis = data;
 
   const total = analysis?.total ?? 0;
@@ -46,6 +62,7 @@ export function CancellationPage() {
   const byCustomerTypeData = useMemo(
     () =>
       (analysis?.byCustomerType ?? []).map((segment) => ({
+        key: segment.key,
         name: segment.label,
         rate: Math.round(segment.rate * 100),
         cancelled: segment.cancelled,
@@ -56,12 +73,26 @@ export function CancellationPage() {
   const byCategoryData = useMemo(
     () =>
       (analysis?.byCategory ?? []).map((segment) => ({
+        key: segment.key,
         name: segment.label,
         rate: Math.round(segment.rate * 100),
         cancelled: segment.cancelled,
       })),
     [analysis]
   );
+
+  const filteredOrders = useMemo(() => {
+    const orders = analysis?.cancelledOrders ?? [];
+    if (!segmentFilter) return orders;
+    if (segmentFilter.dimension === "customerType") {
+      return orders.filter(
+        (order) => (order.customerType ?? "unknown") === segmentFilter.key
+      );
+    }
+    return orders.filter(
+      (order) => (order.category ?? "Uncategorized") === segmentFilter.key
+    );
+  }, [analysis, segmentFilter]);
 
   const highRateSegments = useMemo(
     () =>
@@ -90,6 +121,59 @@ export function CancellationPage() {
       cancelledOrders: (analysis?.cancelledOrders ?? []).slice(0, 50),
     }),
   });
+
+  const toggleSegmentFilter = (nextFilter: SegmentFilter) => {
+    setSegmentFilter((current) =>
+      current?.dimension === nextFilter.dimension &&
+      current.key === nextFilter.key
+        ? null
+        : nextFilter
+    );
+  };
+
+  const exportRows = () => {
+    exportAnalyticsCsv(
+      "cancelled-orders.csv",
+      [
+        translate(
+          "car.analytics.cancellation.orderNo",
+          { ns: "car" },
+          "Order"
+        ),
+        translate(
+          "car.analytics.cancellation.customer",
+          { ns: "car" },
+          "Customer"
+        ),
+        translate(
+          "car.analytics.cancellation.customerType",
+          { ns: "car" },
+          "Customer type"
+        ),
+        translate("car.analytics.vehicle", { ns: "car" }, "Vehicle"),
+        translate("car.analytics.category", { ns: "car" }, "Category"),
+        translate(
+          "car.analytics.cancellation.amount",
+          { ns: "car" },
+          "Amount"
+        ),
+        translate(
+          "car.analytics.cancellation.reason",
+          { ns: "car" },
+          "Reason"
+        ),
+      ],
+      filteredOrders.map((order) => [
+        order.orderNo,
+        order.customer,
+        customerTypeLabel(order.customerType, translate),
+        order.vehicle,
+        order.category,
+        order.amount,
+        order.cancelReason,
+      ])
+    );
+  };
 
   return (
     <div ref={aiContext.ref} className="flex flex-col gap-6">
@@ -169,16 +253,39 @@ export function CancellationPage() {
             "Cancellation rate by customer type"
           )}
         >
-          <CardContent className="h-64 py-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byCustomerTypeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} width={34} unit="%" domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}%`, translate("car.analytics.cancellation.rate", { ns: "car" }, "Rate")]} />
-                <Bar dataKey="rate" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="p-0">
+            <AnalyticsStates
+              isLoading={isLoading}
+              isError={isError}
+              isEmpty={byCustomerTypeData.length === 0}
+              onRetry={() => void refetch()}
+            >
+              <div className="h-64 py-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={byCustomerTypeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                    <YAxis tickLine={false} axisLine={false} fontSize={12} width={34} unit="%" domain={[0, 100]} />
+                    <Tooltip formatter={(value) => [`${value}%`, translate("car.analytics.cancellation.rate", { ns: "car" }, "Rate")]} />
+                    <Bar dataKey="rate" fill="var(--chart-4)" radius={[4, 4, 0, 0]}>
+                      {byCustomerTypeData.map((segment) => (
+                        <Cell
+                          key={segment.key}
+                          className="cursor-pointer"
+                          onClick={() =>
+                            toggleSegmentFilter({
+                              dimension: "customerType",
+                              key: segment.key,
+                              label: segment.name,
+                            })
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </AnalyticsStates>
           </CardContent>
         </AnalyticsCard>
 
@@ -189,16 +296,39 @@ export function CancellationPage() {
             "Cancellation rate by vehicle category"
           )}
         >
-          <CardContent className="h-64 py-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byCategoryData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} width={34} unit="%" domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}%`, translate("car.analytics.cancellation.rate", { ns: "car" }, "Rate")]} />
-                <Bar dataKey="rate" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="p-0">
+            <AnalyticsStates
+              isLoading={isLoading}
+              isError={isError}
+              isEmpty={byCategoryData.length === 0}
+              onRetry={() => void refetch()}
+            >
+              <div className="h-64 py-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={byCategoryData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                    <YAxis tickLine={false} axisLine={false} fontSize={12} width={34} unit="%" domain={[0, 100]} />
+                    <Tooltip formatter={(value) => [`${value}%`, translate("car.analytics.cancellation.rate", { ns: "car" }, "Rate")]} />
+                    <Bar dataKey="rate" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                      {byCategoryData.map((segment) => (
+                        <Cell
+                          key={segment.key}
+                          className="cursor-pointer"
+                          onClick={() =>
+                            toggleSegmentFilter({
+                              dimension: "category",
+                              key: segment.key,
+                              label: segment.name,
+                            })
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </AnalyticsStates>
           </CardContent>
         </AnalyticsCard>
       </div>
@@ -216,7 +346,28 @@ export function CancellationPage() {
         )}
       >
         <CardContent className="p-0">
-          <Table>
+          <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4 py-3">
+            <div>
+              {segmentFilter ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSegmentFilter(null)}
+                >
+                  {segmentFilter.label}
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+            <AnalyticsExportButton onExport={exportRows} />
+          </div>
+          <AnalyticsStates
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={filteredOrders.length === 0}
+            onRetry={() => void refetch()}
+          >
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{translate("car.analytics.cancellation.orderNo", { ns: "car" }, "Order")}</TableHead>
@@ -227,8 +378,12 @@ export function CancellationPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(analysis?.cancelledOrders ?? []).map((order) => (
-                <TableRow key={order.id}>
+              {filteredOrders.map((order) => (
+                <TableRow
+                  key={order.id}
+                  className="cursor-pointer transition-colors hover:bg-accent/30"
+                  onClick={() => navigate(`/scm_rental_orders/show/${order.id}`)}
+                >
                   <TableCell className="font-mono text-xs">{order.orderNo}</TableCell>
                   <TableCell>
                     <div className="font-medium">{order.customer}</div>
@@ -250,15 +405,9 @@ export function CancellationPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!isLoading && (analysis?.cancelledOrders?.length ?? 0) === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    {translate("car.analytics.cancellation.noCancelled", { ns: "car" }, "No cancelled orders.")}
-                  </TableCell>
-                </TableRow>
-              ) : null}
             </TableBody>
-          </Table>
+            </Table>
+          </AnalyticsStates>
         </CardContent>
       </AnalyticsCard>
     </div>
@@ -270,10 +419,10 @@ function customerTypeLabel(
   translate: ReturnType<typeof useTranslate>
 ): string {
   if (type === "personal") {
-    return translate("car.customer.type.personal", { ns: "car" }, "个人客户");
+    return translate("car.customer.type.personal", { ns: "car" }, "Individual");
   }
   if (type === "corporate") {
-    return translate("car.customer.type.corporate", { ns: "car" }, "企业客户");
+    return translate("car.customer.type.corporate", { ns: "car" }, "Corporate");
   }
   return "—";
 }

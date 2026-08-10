@@ -12,11 +12,11 @@ import {
   formatDate,
   formatNumber,
 } from "@/components/car/value";
+import { CarDetailExtras } from "@/components/car/car-detail-extras";
 import { CarRelatedPanels } from "@/components/car/car-related";
 import { CarHistoryPanel } from "@/components/car/car-history";
 import { CarAttachmentValue } from "@/components/car/car-attachment";
 import {
-  InlineNumberEdit,
   InlineSelectEdit,
 } from "@/components/car/car-inline-edit";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,7 +25,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RouteDrawer } from "@/extensions/nocobase-route-surfaces";
 import { useAIPageElementHandle } from "@/lib/car/ai";
 import { resolveCarLabel } from "@/lib/car/labels";
-import type { CarResourceConfig } from "@/lib/car/types";
+import {
+  hasGenericEditFields,
+  type CarResourceConfig,
+} from "@/lib/car/types";
 
 export function CarResourceShow({
   config,
@@ -150,6 +153,7 @@ export function CarResourceShow({
             >
               <RotateCw />
             </RefreshButton>
+            {hasGenericEditFields(config) ? (
             <EditButton
               resource={config.name}
               recordItemId={String(record.id)}
@@ -165,6 +169,7 @@ export function CarResourceShow({
             >
               <Pencil />
             </EditButton>
+            ) : null}
           </>
         ) : null
       }
@@ -195,6 +200,7 @@ export function CarResourceShow({
         ) : record ? (
           <div className="space-y-6">
             <DetailSections config={config} record={record} />
+            <CarDetailExtras config={config} record={record} />
             {config.related?.length ? (
               <>
                 <Separator />
@@ -233,23 +239,31 @@ function DetailSections({
                 <div key={field.name} className="space-y-1">
                   <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd className="text-sm font-medium break-words">
-                    <InlineSelectEdit
-                      resource={config.name}
-                      recordId={String(record.id)}
-                      fieldName={field.name}
-                      fieldLabel={label}
-                      value={value}
-                      options={(field.options ?? []).map((option) => ({
-                        value: option.value,
-                        label: resolveCarLabel(option.label, option.label, translate),
-                      }))}
-                      display={
-                        <CarStatusBadge
-                          value={String(value ?? "")}
-                          options={field.options}
-                        />
-                      }
-                    />
+                    {field.mutability === "domain" ||
+                    field.mutability === "create-only" ? (
+                      <CarStatusBadge
+                        value={String(value ?? "")}
+                        options={field.options}
+                      />
+                    ) : (
+                      <InlineSelectEdit
+                        resource={config.name}
+                        recordId={String(record.id)}
+                        fieldName={field.name}
+                        fieldLabel={label}
+                        value={value}
+                        options={(field.options ?? []).map((option) => ({
+                          value: option.value,
+                          label: resolveCarLabel(option.label, option.label, translate),
+                        }))}
+                        display={
+                          <CarStatusBadge
+                            value={String(value ?? "")}
+                            options={field.options}
+                          />
+                        }
+                      />
+                    )}
                   </dd>
                 </div>
               );
@@ -291,18 +305,9 @@ function DetailSections({
                 <div key={field.name} className="space-y-1">
                   <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd className="text-sm font-medium break-words">
-                    <InlineNumberEdit
-                      resource={config.name}
-                      recordId={String(record.id)}
-                      fieldName={field.name}
-                      fieldLabel={label}
-                      value={value}
-                      display={
-                        <span className="tabular-nums">
-                          {typeof value === "number" ? formatNumber(value) : "-"}
-                        </span>
-                      }
-                    />
+                    <span className="tabular-nums">
+                      {typeof value === "number" ? formatNumber(value) : "-"}
+                    </span>
                   </dd>
                 </div>
               );

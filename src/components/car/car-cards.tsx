@@ -11,7 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { resolveCarLabel } from "@/lib/car/labels";
-import type { CarResourceConfig } from "@/lib/car/types";
+import {
+  hasGenericEditFields,
+  type CarResourceConfig,
+} from "@/lib/car/types";
 
 const getNestedValue = (
   record: Record<string, unknown>,
@@ -149,6 +152,7 @@ export function CarCardsView({
                 >
                   <Eye />
                 </Button>
+                {hasGenericEditFields(config) ? (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -162,6 +166,7 @@ export function CarCardsView({
                 >
                   <Pencil />
                 </Button>
+                ) : null}
                 {config.canDelete !== false ? (
                   <DeleteButton
                     resource={config.name}

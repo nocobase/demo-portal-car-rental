@@ -1,4 +1,5 @@
-import { useList, useTranslate } from "@refinedev/core";
+import { useTranslate, type CrudFilters } from "@refinedev/core";
+import { useQuery } from "@tanstack/react-query";
 import {
   createRouteSurfaceNavigationState,
 } from "@nocobase/portal-sdk/routing";
@@ -21,6 +22,7 @@ import { CarRelationValue, CarStatusBadge } from "@/components/car/value";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { resolveCarLabel } from "@/lib/car/labels";
+import { fetchAllRecords } from "@/lib/car/fetch-all";
 import type { CarResourceConfig } from "@/lib/car/types";
 
 const WEEKDAYS = [
@@ -66,6 +68,19 @@ export function CarCalendarView({
 
   const startField = config.calendarField ?? "pickup_time";
   const endField = config.calendarEndField;
+  const days = useMemo(() => {
+    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [month]);
+  const visibleStart = days[0];
+  const visibleEnd = days[days.length - 1];
+  const visibleStartIso = visibleStart.toISOString();
+  const visibleEndExclusiveIso = new Date(
+    visibleEnd.getFullYear(),
+    visibleEnd.getMonth(),
+    visibleEnd.getDate() + 1
+  ).toISOString();
 
   const relationAppends = useMemo(() => {
     const fields = new Set<string>();
@@ -82,17 +97,67 @@ export function CarCalendarView({
     return Array.from(fields);
   }, [config.columns]);
 
-  const { result } = useList<Record<string, unknown>>({
-    resource: config.name,
-    pagination: { mode: "server", currentPage: 1, pageSize: 300 },
-    meta: {
-      appends: relationAppends,
+  const filters = useMemo<CrudFilters>(() => {
+    const dateFilters: CrudFilters = endField
+      ? [
+          {
+            field: startField,
+            operator: "lt",
+            value: visibleEndExclusiveIso,
+          },
+          {
+            field: endField,
+            operator: "gte",
+            value: visibleStartIso,
+          },
+        ]
+      : [
+          {
+            field: startField,
+            operator: "gte",
+            value: visibleStartIso,
+          },
+          {
+            field: startField,
+            operator: "lt",
+            value: visibleEndExclusiveIso,
+          },
+        ];
+    if (config.name === "scm_rental_orders") {
+      dateFilters.push({ field: "status", operator: "ne", value: "cancelled" });
+    }
+    return dateFilters;
+  }, [config.name, endField, startField, visibleEndExclusiveIso, visibleStartIso]);
+
+  const calendarQuery = useQuery({
+    queryKey: [
+      "car",
+      "calendar",
+      config.name,
+      startField,
+      endField,
+      visibleStartIso,
+      visibleEndExclusiveIso,
+    ],
+    queryFn: async () => {
+      const result = await fetchAllRecords<Record<string, unknown>>({
+        resource: config.name,
+        filters,
+        sorters: [{ field: startField, order: "asc" }],
+        meta: { appends: relationAppends },
+      });
+      if (!result.complete) {
+        throw new Error(
+          `Only ${result.rows.length} of ${result.total} calendar records loaded.`
+        );
+      }
+      return result.rows;
     },
-    queryOptions: { retry: false },
+    retry: false,
   });
 
   const rows = useMemo(() => {
-    const all = result.data ?? [];
+    const all = calendarQuery.data ?? [];
     const trimmed = (search ?? "").trim().toLowerCase();
     if (!trimmed) return all;
     const searchable = config.searchableFields ?? [];
@@ -103,13 +168,7 @@ export function CarCalendarView({
           .includes(trimmed)
       )
     );
-  }, [result.data, search, config.searchableFields]);
-
-  const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, [month]);
+  }, [calendarQuery.data, search, config.searchableFields]);
 
   const ordersByDay = useMemo(() => {
     const map: Record<string, Record<string, unknown>[]> = {};
@@ -122,16 +181,30 @@ export function CarCalendarView({
       const endDate = endValue
         ? new Date(String(endValue))
         : null;
-      const key = (d: Date) => format(d, "yyyy-MM-dd");
-      if (startDate && !Number.isNaN(startDate.getTime())) {
-        (map[key(startDate)] ??= []).push(record);
-      }
-      if (endDate && !Number.isNaN(endDate.getTime())) {
-        (map[key(endDate)] ??= []).push(record);
+      if (!startDate || Number.isNaN(startDate.getTime())) continue;
+      const validEnd =
+        endDate &&
+        !Number.isNaN(endDate.getTime()) &&
+        endDate.getTime() >= startDate.getTime()
+          ? endDate
+          : startDate;
+      const clippedStart = new Date(
+        Math.max(startDate.getTime(), visibleStart.getTime())
+      );
+      const clippedEnd = new Date(
+        Math.min(validEnd.getTime(), visibleEnd.getTime())
+      );
+      if (clippedStart.getTime() > clippedEnd.getTime()) continue;
+      for (const occupiedDay of eachDayOfInterval({
+        start: clippedStart,
+        end: clippedEnd,
+      })) {
+        const dayKey = format(occupiedDay, "yyyy-MM-dd");
+        (map[dayKey] ??= []).push(record);
       }
     }
     return map;
-  }, [rows, startField, endField]);
+  }, [rows, startField, endField, visibleEnd, visibleStart]);
 
   const monthLabel = format(month, "yyyy-MM");
 
@@ -182,6 +255,32 @@ export function CarCalendarView({
         </div>
       </div>
 
+      {calendarQuery.isError ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <span>
+            {translate(
+              "car.calendar.loadError",
+              { ns: "car" },
+              "Calendar records could not be loaded."
+            )}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void calendarQuery.refetch()}
+          >
+            {translate("buttons.refresh", "Retry")}
+          </Button>
+        </div>
+      ) : null}
+
+      {calendarQuery.isLoading ? (
+        <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
+          {translate("car.calendar.loading", { ns: "car" }, "Loading calendar…")}
+        </div>
+      ) : null}
+
+      {!calendarQuery.isLoading && !calendarQuery.isError ? (
       <div className="overflow-x-auto rounded-xl border">
         <div className="grid min-w-[720px] grid-cols-7 border-b bg-muted/40">
           {WEEKDAYS.map((key) => (
@@ -242,6 +341,7 @@ export function CarCalendarView({
           })}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }
@@ -273,10 +373,10 @@ function CalendarOrderPill({
   const isPickup = startDay === dayKey;
   const isReturn = endDay === dayKey && !isPickup;
   const tag = isPickup
-    ? translate("car.calendar.pickup", { ns: "car" }, "取")
+    ? translate("car.calendar.pickup", { ns: "car" }, "Pickup")
     : isReturn
-      ? translate("car.calendar.return", { ns: "car" }, "还")
-      : translate("car.calendar.both", { ns: "car" }, "取还");
+      ? translate("car.calendar.return", { ns: "car" }, "Return")
+      : translate("car.calendar.occupied", { ns: "car" }, "Rental");
 
   const title = resolveCalendarTitle(config, record);
 

@@ -407,7 +407,7 @@ function AssistantPanelShell({
                   <CardTitle className="flex items-center gap-2 text-sm">
                     {title}
                     <span className="rounded-full border bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {translate("car.ai.collapsed", { ns: "car" }, "点击展开")}
+                      {translate("car.ai.collapsed", { ns: "car" }, "Click to expand")}
                     </span>
                   </CardTitle>
                   <CardDescription className="truncate text-xs">

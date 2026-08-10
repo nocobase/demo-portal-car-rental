@@ -1,6 +1,7 @@
 import { useTranslate } from "@refinedev/core";
 import { CalendarDays, Gauge, Megaphone, Percent } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Bar,
   BarChart,
@@ -13,7 +14,7 @@ import {
 } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,12 @@ import {
   AnalyticsPageHeader,
   useAnalyticsAIContext,
 } from "./shared";
+import {
+  AnalyticsExportButton,
+  AnalyticsStates,
+  AnalyticsTopNSelect,
+  exportAnalyticsCsv,
+} from "./toolbar";
 
 function buildMonthOptions(): string[] {
   const options: string[] = [];
@@ -54,12 +61,28 @@ function currentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function previousCalendarMonth(month: string): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const date = new Date(year, monthIndex - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function UtilizationPage() {
   const translate = useTranslate();
+  const navigate = useNavigate();
   const [month, setMonth] = useState<string>(currentMonth());
+  const [topN, setTopN] = useState<number | "all">(15);
   const monthOptions = useMemo(buildMonthOptions, []);
-  const { data } = useUtilization(month);
+  const previousMonth = useMemo(() => previousCalendarMonth(month), [month]);
+  const { data, isLoading, isError, refetch } = useUtilization(month);
+  const {
+    data: previousData,
+    isLoading: isPreviousLoading,
+    isError: isPreviousError,
+    refetch: refetchPrevious,
+  } = useUtilization(previousMonth);
   const rows = useMemo(() => data ?? [], [data]);
+  const previousRows = useMemo(() => previousData ?? [], [previousData]);
 
   const avgUtilization = useMemo(
     () =>
@@ -72,6 +95,15 @@ export function UtilizationPage() {
     () => rows.filter((row) => row.lowUtilization).length,
     [rows]
   );
+  const previousAvgUtilization = useMemo(
+    () =>
+      previousRows.length > 0
+        ? previousRows.reduce((sum, row) => sum + row.utilization, 0) /
+          previousRows.length
+        : 0,
+    [previousRows]
+  );
+  const utilizationChange = (avgUtilization - previousAvgUtilization) * 100;
   const maxUtilization = useMemo(
     () =>
       rows.length > 0
@@ -89,7 +121,7 @@ export function UtilizationPage() {
       month,
       avgUtilization,
       lowCount,
-      rows: rows
+      rows: [...rows]
         .sort((a, b) => a.utilization - b.utilization)
         .slice(0, 50)
         .map((row) => ({
@@ -104,22 +136,106 @@ export function UtilizationPage() {
     }),
   });
 
-  const chartData = useMemo(
-    () =>
-      [...rows]
-        .sort((a, b) => a.utilization - b.utilization)
-        .map((row) => ({
-          name: row.plate,
-          utilization: Math.round(row.utilization * 100),
-          low: row.lowUtilization,
-        })),
-    [rows]
-  );
-
   const sortedRows = useMemo(
     () => [...rows].sort((a, b) => a.utilization - b.utilization),
     [rows]
   );
+  const chartRows = useMemo(
+    () => (topN === "all" ? sortedRows : sortedRows.slice(0, topN)),
+    [sortedRows, topN]
+  );
+  const chartData = useMemo(
+    () =>
+      chartRows.map((row) => ({
+        name: row.plate,
+        utilization: Math.round(row.utilization * 100),
+        low: row.lowUtilization,
+      })),
+    [chartRows]
+  );
+  const previousByVehicle = useMemo(
+    () => new Map(previousRows.map((row) => [row.vehicleId, row.utilization])),
+    [previousRows]
+  );
+  const chartScope =
+    topN === "all"
+      ? translate(
+          "car.analytics.utilization.chartAll",
+          { ns: "car" },
+          "All lowest-utilization vehicles"
+        )
+      : translate(
+          "car.analytics.utilization.chartTopN",
+          { ns: "car" },
+          "{{count}} lowest-utilization vehicles"
+        ).replace("{{count}}", String(topN));
+  const comparisonHint = translate(
+    "car.analytics.utilization.changeHint",
+    { ns: "car" },
+    "{{change}} pts vs {{month}}"
+  )
+    .replace(
+      "{{change}}",
+      `${utilizationChange >= 0 ? "+" : ""}${utilizationChange.toFixed(1)}`
+    )
+    .replace("{{month}}", previousMonth);
+  const utilizationDeltaLabel = (change: number) =>
+    translate(
+      "car.analytics.utilization.deltaValue",
+      { ns: "car" },
+      "{{change}} pts"
+    ).replace(
+      "{{change}}",
+      `${change >= 0 ? "+" : ""}${change.toFixed(1)}`
+    );
+
+  const exportRows = () => {
+    exportAnalyticsCsv(
+      `vehicle-utilization-${month}.csv`,
+      [
+        translate("car.analytics.plate", { ns: "car" }, "Plate"),
+        translate("car.analytics.brand", { ns: "car" }, "Brand"),
+        translate("car.analytics.model", { ns: "car" }, "Model"),
+        translate("car.analytics.category", { ns: "car" }, "Category"),
+        translate(
+          "car.analytics.utilization.occupied",
+          { ns: "car" },
+          "Occupied days"
+        ),
+        translate(
+          "car.analytics.utilization.totalDays",
+          { ns: "car" },
+          "Days"
+        ),
+        translate(
+          "car.analytics.utilization.rate",
+          { ns: "car" },
+          "Utilization"
+        ),
+        translate(
+          "car.analytics.utilization.dailyRate",
+          { ns: "car" },
+          "Daily rate"
+        ),
+        translate(
+          "car.analytics.utilization.lowUtilization",
+          { ns: "car" },
+          "Low utilization"
+        ),
+      ],
+      sortedRows.map((row) => [
+        row.plate,
+        row.brand,
+        row.model,
+        row.category,
+        row.occupiedDays,
+        row.daysInMonth,
+        `${(row.utilization * 100).toFixed(1)}%`,
+        row.dailyRate,
+        String(row.lowUtilization),
+      ])
+    );
+  };
 
   return (
     <div ref={aiContext.ref} className="flex flex-col gap-6">
@@ -159,7 +275,8 @@ export function UtilizationPage() {
           icon={<Percent className="size-4" />}
           label={translate("car.analytics.utilization.avg", { ns: "car" }, "Average utilization")}
           value={`${(avgUtilization * 100).toFixed(1)}%`}
-          hint={translate("car.analytics.utilization.monthHint", { ns: "car" }, "Fleet average")}
+          hint={comparisonHint}
+          tone={utilizationChange > 0 ? "positive" : utilizationChange < 0 ? "warn" : "default"}
         />
         <AnalyticsKpiCard
           icon={<Gauge className="size-4" />}
@@ -176,10 +293,14 @@ export function UtilizationPage() {
         <AnalyticsKpiCard
           icon={<Megaphone className="size-4" />}
           label={translate("car.analytics.utilization.promo", { ns: "car" }, "Promotion suggestion")}
-          value={translate("car.analytics.utilization.promoValue", { ns: "car" }, "降租促销")}
+          value={translate("car.analytics.utilization.promoValue", { ns: "car" }, "Discount rent")}
           hint={translate("car.analytics.utilization.promoHint", { ns: "car" }, "Target low-utilization fleet")}
           tone="warn"
         />
+      </div>
+
+      <div className="flex justify-end">
+        <AnalyticsExportButton onExport={exportRows} />
       </div>
 
       <AnalyticsCard
@@ -188,34 +309,53 @@ export function UtilizationPage() {
           { ns: "car" },
           "Utilization by vehicle"
         )}
-        description={`${month} · ${translate("car.analytics.utilization.chartDescription", { ns: "car" }, "Occupied days ÷ days in month")}`}
+        description={`${month} · ${translate("car.analytics.utilization.chartDescription", { ns: "car" }, "Occupied days ÷ days in month")} · ${chartScope}`}
       >
-        <CardContent className="h-72 py-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={34}
-                unit="%"
-                domain={[0, 100]}
-              />
-              <Tooltip
-                formatter={(value) => [`${value}%`, translate("car.analytics.utilization.rate", { ns: "car" }, "Utilization")]}
-              />
-              <Bar dataKey="utilization" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.low ? "var(--chart-4)" : "var(--chart-1)"}
+        <CardContent className="space-y-3 py-4">
+          <div className="flex justify-end">
+            <AnalyticsTopNSelect
+              value={topN}
+              onChange={setTopN}
+              options={[15, 30, "all"]}
+            />
+          </div>
+          <AnalyticsStates
+            isLoading={isLoading || isPreviousLoading}
+            isError={isError || isPreviousError}
+            isEmpty={rows.length === 0}
+            onRetry={() => {
+              void refetch();
+              void refetchPrevious();
+            }}
+          >
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                    width={34}
+                    unit="%"
+                    domain={[0, 100]}
                   />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+                  <Tooltip
+                    formatter={(value) => [`${value}%`, translate("car.analytics.utilization.rate", { ns: "car" }, "Utilization")]}
+                  />
+                  <Bar dataKey="utilization" radius={[4, 4, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell
+                        key={index}
+                        fill={entry.low ? "var(--chart-4)" : "var(--chart-1)"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </AnalyticsStates>
         </CardContent>
       </AnalyticsCard>
 
@@ -232,20 +372,34 @@ export function UtilizationPage() {
         )}
       >
         <CardContent className="p-0">
-          <Table>
+          <AnalyticsStates
+            isLoading={isLoading || isPreviousLoading}
+            isError={isError || isPreviousError}
+            isEmpty={rows.length === 0}
+            onRetry={() => {
+              void refetch();
+              void refetchPrevious();
+            }}
+          >
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{translate("car.analytics.vehicle", { ns: "car" }, "Vehicle")}</TableHead>
                 <TableHead className="text-right">{translate("car.analytics.utilization.occupied", { ns: "car" }, "Occupied days")}</TableHead>
                 <TableHead className="text-right">{translate("car.analytics.utilization.totalDays", { ns: "car" }, "Days")}</TableHead>
                 <TableHead className="w-48">{translate("car.analytics.utilization.rate", { ns: "car" }, "Utilization")}</TableHead>
+                <TableHead className="text-right">{translate("car.analytics.utilization.delta", { ns: "car" }, "Δ vs prev")}</TableHead>
                 <TableHead className="text-right">{translate("car.analytics.utilization.dailyRate", { ns: "car" }, "Daily rate")}</TableHead>
                 <TableHead>{translate("car.analytics.flag", { ns: "car" }, "Flag")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedRows.map((row) => (
-                <TableRow key={row.vehicleId}>
+                <TableRow
+                  key={row.vehicleId}
+                  className="cursor-pointer transition-colors hover:bg-accent/30"
+                  onClick={() => navigate(`/scm_vehicles/profile/${row.vehicleId}`)}
+                >
                   <TableCell>
                     <div className="font-medium">{row.plate}</div>
                     <div className="text-xs text-muted-foreground">
@@ -264,6 +418,14 @@ export function UtilizationPage() {
                     />
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
+                    {previousByVehicle.has(row.vehicleId)
+                      ? utilizationDeltaLabel(
+                          (row.utilization - previousByVehicle.get(row.vehicleId)!) *
+                            100
+                        )
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
                     {row.dailyRate ? formatMoney(row.dailyRate) : "-"}
                   </TableCell>
                   <TableCell>
@@ -273,7 +435,7 @@ export function UtilizationPage() {
                         className="h-6 gap-1.5 rounded-md border-amber-600/30 bg-card px-2 text-[11px] font-medium text-amber-700 dark:text-amber-400"
                       >
                         <span aria-hidden="true" className="size-1.5 rounded-full bg-amber-500" />
-                        {translate("car.analytics.utilization.promote", { ns: "car" }, "建议促销")}
+                        {translate("car.analytics.utilization.promote", { ns: "car" }, "Promote")}
                       </Badge>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
@@ -281,15 +443,9 @@ export function UtilizationPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {sortedRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                    {translate("car.analytics.empty", { ns: "car" }, "No data available.")}
-                  </TableCell>
-                </TableRow>
-              ) : null}
             </TableBody>
-          </Table>
+            </Table>
+          </AnalyticsStates>
         </CardContent>
       </AnalyticsCard>
     </div>

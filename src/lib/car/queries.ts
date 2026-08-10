@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { nocobaseClient } from "@nocobase/portal-sdk/client";
+import { dueReturnFilter } from "@/lib/car/operations";
 
 type QueryRow = Record<string, string | number>;
 
@@ -29,18 +30,26 @@ const runAggregate = async (
   return Array.isArray(response) ? response : [];
 };
 
-export const useMonthlyRevenue = () =>
-  useQuery({
-    queryKey: ["car", "revenue", "by-month"],
+export const useMonthlyRevenue = () => {
+  const currentMonthStart = new Date();
+  currentMonthStart.setDate(1);
+  currentMonthStart.setHours(0, 0, 0, 0);
+  const completeBefore = currentMonthStart.toISOString();
+  return useQuery({
+    queryKey: ["car", "revenue", "by-month", completeBefore],
     queryFn: () =>
       runAggregate(
         "scm_payments",
         [{ field: ["amount"], aggregation: "sum", alias: "revenue" }],
         [{ field: ["payment_time"], alias: "month", format: "yyyy-MM" }],
-        undefined,
+        {
+          status: { $eq: "paid" },
+          payment_time: { $lt: completeBefore },
+        },
         [{ field: "month", direction: "asc" }]
       ),
   });
+};
 
 export const useTopModels = (limit = 5) =>
   useQuery({
@@ -91,9 +100,15 @@ export const useCarKpis = () =>
           runAggregate("scm_rental_orders", [
             { field: ["id"], aggregation: "count", alias: "c" },
           ], undefined, { status: { $eq: "ongoing" } }),
-          runAggregate("scm_payments", [
-            { field: ["amount"], aggregation: "sum", alias: "total" },
-          ]),
+          runAggregate(
+            "scm_payments",
+            [{ field: ["amount"], aggregation: "sum", alias: "total" }],
+            undefined,
+            {
+              status: { $eq: "paid" },
+              payment_time: { $lte: new Date().toISOString() },
+            }
+          ),
           runAggregate("scm_customers", [
             { field: ["id"], aggregation: "count", alias: "c" },
           ]),
@@ -129,10 +144,7 @@ export const useTodayReturns = () =>
         "scm_rental_orders",
         [{ field: ["id"], aggregation: "count", alias: "c" }],
         undefined,
-        {
-          status: { $ne: "cancelled" },
-          expected_return: { $dateBetween: [start, end] },
-        }
+        dueReturnFilter(start, end)
       );
       return Number(rows[0]?.c ?? 0);
     },
@@ -142,12 +154,17 @@ export const useCurrentMonthRevenue = () =>
   useQuery({
     queryKey: ["car", "kpis", "month-revenue"],
     queryFn: async () => {
-      const [start, end] = monthRange(new Date());
+      const now = new Date();
+      const [start] = monthRange(now);
+      const end = now.toISOString();
       const rows = await runAggregate(
         "scm_payments",
         [{ field: ["amount"], aggregation: "sum", alias: "total" }],
         undefined,
-        { payment_time: { $dateBetween: [start, end] } }
+        {
+          status: { $eq: "paid" },
+          payment_time: { $dateBetween: [start, end] },
+        }
       );
       return Number(rows[0]?.total ?? 0);
     },

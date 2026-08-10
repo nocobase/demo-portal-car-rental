@@ -1,3 +1,4 @@
+import { CalendarRange, ConciergeBell, ShieldAlert } from "lucide-react";
 import { Navigate } from "react-router";
 
 import {
@@ -117,6 +118,88 @@ export const dashboardRoute = {
     },
   },
 };
+
+// Operational surfaces that are not a single collection's CRUD: the counter's
+// day, the vehicle × date availability board and the expiry queue.
+export const carOperationRoutes = [
+  {
+    name: "rental-desk",
+    path: "/rental-desk",
+    lazy: () =>
+      import("./rental-desk").then((module) => ({
+        default: module.RentalDeskPage,
+      })),
+    access: { roles: { anyOf: carPortalRoles } },
+    resource: {
+      meta: {
+        label: "car.desk.title",
+        i18nKey: "car.desk.title",
+        i18nOptions: { ns: "car" },
+        descriptionI18nKey: "car.desk.description",
+        priority: 2,
+        icon: <ConciergeBell />,
+        canCreate: false,
+        canDelete: false,
+        acl: { type: "authenticated" },
+      },
+    },
+  },
+  {
+    name: "fleet-schedule",
+    path: "/fleet-schedule",
+    lazy: () =>
+      import("./schedule").then((module) => ({
+        default: module.FleetSchedulePage,
+      })),
+    access: { roles: { anyOf: carPortalRoles } },
+    resource: {
+      meta: {
+        label: "car.schedule.title",
+        i18nKey: "car.schedule.title",
+        i18nOptions: { ns: "car" },
+        descriptionI18nKey: "car.schedule.description",
+        priority: 3,
+        icon: <CalendarRange />,
+        canCreate: false,
+        canDelete: false,
+        acl: { type: "authenticated" },
+      },
+    },
+  },
+  {
+    name: "compliance",
+    path: "/compliance",
+    lazy: () =>
+      import("./compliance").then((module) => ({
+        default: module.CompliancePage,
+      })),
+    access: { roles: { anyOf: carPortalRoles } },
+    resource: {
+      meta: {
+        label: "car.compliance.title",
+        i18nKey: "car.compliance.title",
+        i18nOptions: { ns: "car" },
+        descriptionI18nKey: "car.compliance.description",
+        priority: 4,
+        icon: <ShieldAlert />,
+        canCreate: false,
+        canDelete: false,
+        acl: { type: "authenticated" },
+      },
+    },
+  },
+  // The vehicle ledger is reached from the fleet list and the schedule board,
+  // so it owns a route but never a menu entry.
+  {
+    name: "vehicle-profile",
+    path: "/scm_vehicles/profile/:id",
+    lazy: () =>
+      import("./vehicle-profile").then((module) => ({
+        default: module.VehicleProfilePage,
+      })),
+    access: { roles: { anyOf: carPortalRoles } },
+  },
+];
 
 export const carGroupRoutes = carMenuGroups.map((group) => ({
   name: group.name,

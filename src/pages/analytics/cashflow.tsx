@@ -1,9 +1,11 @@
 import { useTranslate } from "@refinedev/core";
-import { ArrowLeftRight, HandCoins, Landmark, WalletCards } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowLeftRight, Landmark, WalletCards } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -21,17 +23,45 @@ import {
   AnalyticsPageHeader,
   useAnalyticsAIContext,
 } from "./shared";
+import {
+  AnalyticsExportButton,
+  AnalyticsStates,
+  exportAnalyticsCsv,
+} from "./toolbar";
 
-const AGING_BUCKETS: Array<{ key: AgingRow["bucket"]; label: string }> = [
-  { key: "0-30", label: "0-30 days" },
-  { key: "31-60", label: "31-60 days" },
-  { key: "61-90", label: "61-90 days" },
-  { key: "90+", label: "90+ days" },
+const AGING_BUCKETS: Array<{
+  key: AgingRow["bucket"];
+  labelKey: string;
+  fallback: string;
+}> = [
+  {
+    key: "0-30",
+    labelKey: "car.analytics.cashflow.bucket0",
+    fallback: "0-30 days",
+  },
+  {
+    key: "31-60",
+    labelKey: "car.analytics.cashflow.bucket1",
+    fallback: "31-60 days",
+  },
+  {
+    key: "61-90",
+    labelKey: "car.analytics.cashflow.bucket2",
+    fallback: "61-90 days",
+  },
+  {
+    key: "90+",
+    labelKey: "car.analytics.cashflow.bucket3",
+    fallback: "90+ days",
+  },
 ];
 
 export function CashflowPage() {
   const translate = useTranslate();
-  const { data } = useCashflow();
+  const navigate = useNavigate();
+  const [agingBucketFilter, setAgingBucketFilter] =
+    useState<AgingRow["bucket"] | null>(null);
+  const { data, isLoading, isError, refetch } = useCashflow();
 
   const receivableTotal = data?.receivableTotal ?? 0;
   const depositHeldTotal = data?.depositHeldTotal ?? 0;
@@ -45,11 +75,19 @@ export function CashflowPage() {
     () =>
       AGING_BUCKETS.map((bucket) => ({
         ...bucket,
+        count: agingRows.filter((row) => row.bucket === bucket.key).length,
         total: agingRows
           .filter((row) => row.bucket === bucket.key)
           .reduce((sum, row) => sum + row.outstanding, 0),
       })),
     [agingRows]
+  );
+  const filteredAgingRows = useMemo(
+    () =>
+      agingBucketFilter
+        ? agingRows.filter((row) => row.bucket === agingBucketFilter)
+        : agingRows,
+    [agingBucketFilter, agingRows]
   );
 
   const aiContext = useAnalyticsAIContext({
@@ -67,6 +105,102 @@ export function CashflowPage() {
       refundTodo: refundRows.slice(0, 50),
     }),
   });
+
+  const exportAging = () => {
+    exportAnalyticsCsv(
+      "accounts-receivable-aging.csv",
+      [
+        translate("car.analytics.cashflow.order", { ns: "car" }, "Order"),
+        translate(
+          "car.analytics.cashflow.customer",
+          { ns: "car" },
+          "Customer"
+        ),
+        translate("car.analytics.vehicle", { ns: "car" }, "Vehicle"),
+        translate("car.analytics.cashflow.amount", { ns: "car" }, "Amount"),
+        translate("car.analytics.cashflow.paid", { ns: "car" }, "Paid"),
+        translate(
+          "car.analytics.cashflow.outstanding",
+          { ns: "car" },
+          "Outstanding"
+        ),
+        translate(
+          "car.analytics.cashflow.aging",
+          { ns: "car" },
+          "Aging (days)"
+        ),
+        translate("car.analytics.cashflow.bucket", { ns: "car" }, "Bucket"),
+      ],
+      filteredAgingRows.map((row) => [
+        row.orderNo,
+        row.customer,
+        row.vehicle,
+        row.amount,
+        row.paid,
+        row.outstanding,
+        row.daysAging,
+        translate(
+          AGING_BUCKETS.find((bucket) => bucket.key === row.bucket)!.labelKey,
+          { ns: "car" },
+          AGING_BUCKETS.find((bucket) => bucket.key === row.bucket)!.fallback
+        ),
+      ])
+    );
+  };
+
+  const exportDeposits = () => {
+    exportAnalyticsCsv(
+      "deposits-held.csv",
+      [
+        translate("car.analytics.cashflow.order", { ns: "car" }, "Order"),
+        translate(
+          "car.analytics.cashflow.customer",
+          { ns: "car" },
+          "Customer"
+        ),
+        translate("car.analytics.cashflow.deposit", { ns: "car" }, "Deposit"),
+        translate("car.analytics.cashflow.refund", { ns: "car" }, "Refund"),
+        translate("car.analytics.cashflow.held", { ns: "car" }, "Held"),
+      ],
+      depositRows.map((row) => [
+        row.orderNo,
+        row.customer,
+        row.deposit,
+        row.refund,
+        row.held,
+      ])
+    );
+  };
+
+  const exportRefunds = () => {
+    exportAnalyticsCsv(
+      "refunds-due.csv",
+      [
+        translate("car.analytics.cashflow.order", { ns: "car" }, "Order"),
+        translate(
+          "car.analytics.cashflow.customer",
+          { ns: "car" },
+          "Customer"
+        ),
+        translate(
+          "car.analytics.cashflow.refundAmount",
+          { ns: "car" },
+          "Refund due"
+        ),
+        translate(
+          "car.analytics.cashflow.aging",
+          { ns: "car" },
+          "Aging (days)"
+        ),
+      ],
+      refundRows.map((row) => [
+        row.orderNo,
+        row.customer,
+        row.refundDue,
+        row.daysAging,
+      ])
+    );
+  };
 
   return (
     <div ref={aiContext.ref} className="flex flex-col gap-6">
@@ -119,26 +253,53 @@ export function CashflowPage() {
         )}
       >
         <CardContent className="space-y-4 p-4">
+          <div className="flex justify-end">
+            <AnalyticsExportButton onExport={exportAging} />
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {agingSummary.map((bucket) => (
-              <div key={bucket.key} className="rounded-lg border bg-background p-3">
-                <div className="text-xs text-muted-foreground">{bucket.label}</div>
-                <div
-                  className={`mt-1 font-semibold tabular-nums ${
-                    bucket.key === "90+"
-                      ? "text-red-600 dark:text-red-400"
-                      : bucket.key === "61-90"
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-foreground"
-                  }`}
-                >
-                  {formatMoney(bucket.total)}
+              <Button
+                key={bucket.key}
+                variant={agingBucketFilter === bucket.key ? "secondary" : "outline"}
+                className="h-auto justify-start rounded-lg p-3 text-left"
+                onClick={() =>
+                  setAgingBucketFilter((current) =>
+                    current === bucket.key ? null : bucket.key
+                  )
+                }
+              >
+                <div>
+                  <div className="text-xs font-normal text-muted-foreground">
+                    {translate(bucket.labelKey, { ns: "car" }, bucket.fallback)} ·{" "}
+                    {translate(
+                      "car.analytics.cashflow.bucketCount",
+                      { ns: "car" },
+                      "{{count}} records"
+                    ).replace("{{count}}", String(bucket.count))}
+                  </div>
+                  <div
+                    className={`mt-1 font-semibold tabular-nums ${
+                      bucket.key === "90+"
+                        ? "text-red-600 dark:text-red-400"
+                        : bucket.key === "61-90"
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-foreground"
+                    }`}
+                  >
+                    {formatMoney(bucket.total)}
+                  </div>
                 </div>
-              </div>
+              </Button>
             ))}
           </div>
 
-          <Table>
+          <AnalyticsStates
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={filteredAgingRows.length === 0}
+            onRetry={() => void refetch()}
+          >
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{translate("car.analytics.cashflow.order", { ns: "car" }, "Order")}</TableHead>
@@ -152,8 +313,12 @@ export function CashflowPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {agingRows.map((row) => (
-                <TableRow key={row.orderId}>
+              {filteredAgingRows.map((row) => (
+                <TableRow
+                  key={row.orderId}
+                  className="cursor-pointer transition-colors hover:bg-accent/30"
+                  onClick={() => navigate(`/scm_rental_orders/show/${row.orderId}`)}
+                >
                   <TableCell className="font-mono text-xs">{row.orderNo}</TableCell>
                   <TableCell>{row.customer}</TableCell>
                   <TableCell className="text-sm">{row.vehicle}</TableCell>
@@ -170,15 +335,9 @@ export function CashflowPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {agingRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    {translate("car.analytics.cashflow.noReceivable", { ns: "car" }, "No outstanding receivables.")}
-                  </TableCell>
-                </TableRow>
-              ) : null}
             </TableBody>
-          </Table>
+            </Table>
+          </AnalyticsStates>
         </CardContent>
       </AnalyticsCard>
 
@@ -196,7 +355,16 @@ export function CashflowPage() {
           )}
         >
           <CardContent className="p-0">
-            <Table>
+            <div className="flex justify-end border-b p-3">
+              <AnalyticsExportButton onExport={exportDeposits} />
+            </div>
+            <AnalyticsStates
+              isLoading={isLoading}
+              isError={isError}
+              isEmpty={depositRows.length === 0}
+              onRetry={() => void refetch()}
+            >
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{translate("car.analytics.cashflow.order", { ns: "car" }, "Order")}</TableHead>
@@ -208,7 +376,11 @@ export function CashflowPage() {
               </TableHeader>
               <TableBody>
                 {depositRows.map((row) => (
-                  <TableRow key={row.orderId}>
+                  <TableRow
+                    key={row.orderId}
+                    className="cursor-pointer transition-colors hover:bg-accent/30"
+                    onClick={() => navigate(`/scm_rental_orders/show/${row.orderId}`)}
+                  >
                     <TableCell className="font-mono text-xs">{row.orderNo}</TableCell>
                     <TableCell>{row.customer}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatMoney(row.deposit)}</TableCell>
@@ -220,15 +392,9 @@ export function CashflowPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {depositRows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                      {translate("car.analytics.cashflow.noDeposit", { ns: "car" }, "No retained deposits.")}
-                    </TableCell>
-                  </TableRow>
-                ) : null}
               </TableBody>
-            </Table>
+              </Table>
+            </AnalyticsStates>
           </CardContent>
         </AnalyticsCard>
 
@@ -245,7 +411,16 @@ export function CashflowPage() {
           )}
         >
           <CardContent className="p-0">
-            <Table>
+            <div className="flex justify-end border-b p-3">
+              <AnalyticsExportButton onExport={exportRefunds} />
+            </div>
+            <AnalyticsStates
+              isLoading={isLoading}
+              isError={isError}
+              isEmpty={refundRows.length === 0}
+              onRetry={() => void refetch()}
+            >
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{translate("car.analytics.cashflow.order", { ns: "car" }, "Order")}</TableHead>
@@ -256,7 +431,11 @@ export function CashflowPage() {
               </TableHeader>
               <TableBody>
                 {refundRows.map((row) => (
-                  <TableRow key={row.orderId}>
+                  <TableRow
+                    key={row.orderId}
+                    className="cursor-pointer transition-colors hover:bg-accent/30"
+                    onClick={() => navigate(`/scm_rental_orders/show/${row.orderId}`)}
+                  >
                     <TableCell className="font-mono text-xs">{row.orderNo}</TableCell>
                     <TableCell>{row.customer}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums text-amber-600 dark:text-amber-400">
@@ -265,15 +444,9 @@ export function CashflowPage() {
                     <TableCell className="text-right tabular-nums">{row.daysAging}</TableCell>
                   </TableRow>
                 ))}
-                {refundRows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      {translate("car.analytics.cashflow.noRefund", { ns: "car" }, "No refunds to process.")}
-                    </TableCell>
-                  </TableRow>
-                ) : null}
               </TableBody>
-            </Table>
+              </Table>
+            </AnalyticsStates>
           </CardContent>
         </AnalyticsCard>
       </div>
@@ -284,10 +457,10 @@ export function CashflowPage() {
 function AgingBadge({ bucket }: { bucket: AgingRow["bucket"] }) {
   const translate = useTranslate();
   const labelMap: Record<AgingRow["bucket"], string> = {
-    "0-30": translate("car.analytics.cashflow.bucket0", { ns: "car" }, "0-30 天"),
-    "31-60": translate("car.analytics.cashflow.bucket1", { ns: "car" }, "31-60 天"),
-    "61-90": translate("car.analytics.cashflow.bucket2", { ns: "car" }, "61-90 天"),
-    "90+": translate("car.analytics.cashflow.bucket3", { ns: "car" }, "90+ 天"),
+    "0-30": translate("car.analytics.cashflow.bucket0", { ns: "car" }, "0-30 days"),
+    "31-60": translate("car.analytics.cashflow.bucket1", { ns: "car" }, "31-60 days"),
+    "61-90": translate("car.analytics.cashflow.bucket2", { ns: "car" }, "61-90 days"),
+    "90+": translate("car.analytics.cashflow.bucket3", { ns: "car" }, "90+ days"),
   };
   const tone =
     bucket === "90+"

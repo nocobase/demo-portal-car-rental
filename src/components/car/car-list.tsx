@@ -1,8 +1,14 @@
 import { useTranslate } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
-import { Eye, Pencil, Trash2 } from "lucide-react";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { Eye, Pencil, RotateCw, Trash2 } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -22,13 +28,24 @@ import {
   formatNumber,
 } from "@/components/car/value";
 import { CarSearchBar } from "@/components/car/car-search";
+import {
+  CarBulkBar,
+  CarLayoutSwitcher,
+  CarListSummary,
+  CarListToolbar,
+  useListPreferences,
+  useListSummaryColumns,
+  type ListLayout,
+} from "@/components/car/car-list-toolbar";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { CarAIAssistantPanel } from "@/components/car/car-ai-assistant";
 import { CarKanbanView } from "@/components/car/car-kanban";
 import { CarCardsView } from "@/components/car/car-cards";
 import { CarCalendarView } from "@/components/car/car-calendar";
 import { CarAttachmentValue } from "@/components/car/car-attachment";
 import {
-  InlineNumberEdit,
   InlineSelectEdit,
 } from "@/components/car/car-inline-edit";
 import { useAIPageElementHandle } from "@/lib/car/ai";
@@ -39,6 +56,7 @@ import type {
   CarColumnFieldRef,
   CarResourceConfig,
 } from "@/lib/car/types";
+import { hasGenericEditFields } from "@/lib/car/types";
 
 const getNestedValue = (
   record: Record<string, unknown>,
@@ -198,6 +216,32 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
 
   const columns = useMemo(() => {
     const columnHelper = createColumnHelper<Record<string, unknown>>();
+    // Multi-select drives the bulk action bar; it is pinned left so it stays
+    // reachable on wide tables.
+    const selectColumn = columnHelper.display({
+      id: "__select__",
+      size: 44,
+      enableSorting: false,
+      enableHiding: false,
+      header: ({ table: tableInstance }) => (
+        <Checkbox
+          checked={tableInstance.getIsAllPageRowsSelected()}
+          indeterminate={tableInstance.getIsSomePageRowsSelected()}
+          onCheckedChange={(checked) =>
+            tableInstance.toggleAllPageRowsSelected(Boolean(checked))
+          }
+          aria-label={translate("car.list.bulk.selectAll", { ns: "car" }, "Select all")}
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(checked) => row.toggleSelected(Boolean(checked))}
+          aria-label={translate("car.list.bulk.selectRow", { ns: "car" }, "Select row")}
+        />
+      ),
+    });
+
     const businessColumns: ColumnDef<Record<string, unknown>, unknown>[] =
       config.columns.map((column) =>
       columnHelper.accessor(
@@ -246,9 +290,19 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
           cell: ({ row, getValue }) => {
             const id = row.original.id;
             const value = getValue();
+            const fieldMutability = config.fields.find(
+              (field) => field.name === column.accessor
+            )?.mutability;
+            const inlineEditable =
+              fieldMutability !== "domain" && fieldMutability !== "create-only";
 
             // Status and money fields support inline editing directly.
-            if (column.kind === "select" && column.options && id !== undefined) {
+            if (
+              inlineEditable &&
+              column.kind === "select" &&
+              column.options &&
+              id !== undefined
+            ) {
               return (
                 <InlineSelectEdit
                   resource={config.name}
@@ -265,23 +319,6 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
                       value={String(value ?? "")}
                       options={column.options}
                     />
-                  }
-                />
-              );
-            }
-
-            if (column.kind === "number" && id !== undefined) {
-              return (
-                <InlineNumberEdit
-                  resource={config.name}
-                  recordId={String(id)}
-                  fieldName={column.accessor}
-                  fieldLabel={resolveCarLabel(column.header, column.header, translate)}
-                  value={value}
-                  display={
-                    <span className="tabular-nums">
-                      {typeof value === "number" ? formatNumber(value) : "-"}
-                    </span>
                   }
                 />
               );
@@ -318,6 +355,7 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
         header: resolveCarLabel("car.actions", "Actions", translate),
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
+            {hasGenericEditFields(config) ? (
             <EditButton
               resource={config.name}
               recordItemId={String(row.original.id)}
@@ -328,6 +366,7 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
             >
               <Pencil />
             </EditButton>
+            ) : null}
             <ShowButton
               resource={config.name}
               recordItemId={String(row.original.id)}
@@ -376,7 +415,7 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
       );
     }
 
-    return businessColumns;
+    return [selectColumn, ...businessColumns];
   }, [config, translate, relationOptionsMap, searchableFields, openShow]);
 
   const relationAppends = useMemo(() => {
@@ -397,8 +436,40 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
     return Array.from(fields);
   }, [config.columns]);
 
+  const { preferences, update: updatePreferences } = useListPreferences(
+    config.name
+  );
+  const { statusColumn, amountColumn } = useListSummaryColumns(config);
+
+  // The table is always offered: it is the only layout with saved views, bulk
+  // actions and export. A collection's own preferred layout sits next to it.
+  const layouts = useMemo<ListLayout[]>(() => {
+    const configured = (config.view ?? "table") as ListLayout;
+    return configured === "table" ? ["table"] : ["table", configured];
+  }, [config.view]);
+  // A deep link may force a layout (dashboard drill-downs land on the table,
+  // which is the only layout that can show a filtered subset).
+  const urlLayout = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const value = new URLSearchParams(window.location.search).get("layout");
+    return value === "table" ||
+      value === "kanban" ||
+      value === "cards" ||
+      value === "calendar"
+      ? (value as ListLayout)
+      : null;
+  }, []);
+  const layout: ListLayout =
+    urlLayout && layouts.includes(urlLayout)
+      ? urlLayout
+      : preferences.layout && layouts.includes(preferences.layout)
+        ? preferences.layout
+        : ((config.view ?? "table") as ListLayout);
+
   const table = useTable<Record<string, unknown>>({
     columns,
+    enableRowSelection: true,
+    getRowId: (row) => String(row.id ?? ""),
     refineCoreProps: {
       resource: config.name,
       syncWithLocation: false,
@@ -411,13 +482,52 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
     },
     initialState: {
       columnPinning: {
+        left: ["__select__"],
         right: ["actions"],
       },
       columnVisibility: {
         __global_search__: false,
+        ...preferences.columnVisibility,
       },
     },
   });
+
+  // Column visibility is a per-user preference, so it is mirrored back into
+  // local storage whenever the user toggles a column.
+  const visibilityState = table.reactTable.getState().columnVisibility;
+  useEffect(() => {
+    const persistable = Object.fromEntries(
+      Object.entries(visibilityState).filter(([key]) => key !== "__global_search__")
+    );
+    if (
+      JSON.stringify(persistable) !==
+      JSON.stringify(preferences.columnVisibility)
+    ) {
+      updatePreferences({ columnVisibility: persistable });
+    }
+  }, [visibilityState, preferences.columnVisibility, updatePreferences]);
+
+  const statusFilterValue = useMemo(() => {
+    if (!statusColumn) return undefined;
+    const filter = table.reactTable
+      .getState()
+      .columnFilters.find((item) => item.id === statusColumn.accessor);
+    return filter?.value !== undefined ? String(filter.value) : undefined;
+  }, [statusColumn, table]);
+
+  const applyStatusFilter = useCallback(
+    (status: string | null) => {
+      if (!statusColumn) return;
+      table.reactTable.setColumnFilters((current) => {
+        const others = current.filter(
+          (filter) => filter.id !== statusColumn.accessor
+        );
+        if (!status) return others;
+        return [...others, { id: statusColumn.accessor, value: status }];
+      });
+    },
+    [statusColumn, table]
+  );
 
   const [searchValue, setSearchValue] = useState("");
 
@@ -475,25 +585,103 @@ export function CarResourceList({ config }: { config: CarResourceConfig }) {
   return (
     <ListView resource={config.name}>
       {config.aiAssistant ? <CarAIAssistantPanel config={config} /> : null}
-      {searchableFields.length ? (
-        <div className="flex items-center justify-between gap-3">
-          <CarSearchBar placeholder={searchPlaceholder} onSearch={handleSearch} />
+
+      {layout === "table" ? (
+        <>
+          <CarListSummary
+            config={config}
+            statusColumn={statusColumn}
+            amountColumn={amountColumn}
+            activeStatus={statusFilterValue}
+            onSelectStatus={applyStatusFilter}
+          />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {searchableFields.length ? (
+                <CarSearchBar
+                  placeholder={searchPlaceholder}
+                  onSearch={handleSearch}
+                />
+              ) : null}
+              <CarLayoutSwitcher
+                layouts={layouts}
+                layout={layout}
+                onLayoutChange={(next) => updatePreferences({ layout: next })}
+              />
+            </div>
+            <CarListToolbar
+              config={config}
+              table={table}
+              density={preferences.density}
+              onDensityChange={(density) => updatePreferences({ density })}
+              views={preferences.views}
+              onViewsChange={(views) => updatePreferences({ views })}
+            />
+            <CarBulkBar
+              config={config}
+              table={table}
+              statusColumn={statusColumn}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          {searchableFields.length ? (
+            <CarSearchBar placeholder={searchPlaceholder} onSearch={handleSearch} />
+          ) : null}
+          <CarLayoutSwitcher
+            layouts={layouts}
+            layout={layout}
+            onLayoutChange={(next) => updatePreferences({ layout: next })}
+          />
         </div>
-      ) : null}
-      {config.view === "kanban" ? (
+      )}
+
+      {layout === "kanban" ? (
         <div ref={tableContext.ref}>
           <CarKanbanView config={config} search={searchValue} />
         </div>
-      ) : config.view === "cards" ? (
+      ) : layout === "cards" ? (
         <div ref={tableContext.ref}>
           <CarCardsView config={config} search={searchValue} />
         </div>
-      ) : config.view === "calendar" ? (
+      ) : layout === "calendar" ? (
         <div ref={tableContext.ref}>
           <CarCalendarView config={config} search={searchValue} />
         </div>
+      ) : table.refineCore.tableQuery.isError ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border bg-card px-6 py-16 text-center">
+          <p className="text-lg font-semibold">
+            {translate(
+              "car.list.error.title",
+              { ns: "car" },
+              "This list could not be loaded"
+            )}
+          </p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            {translate(
+              "car.list.error.description",
+              { ns: "car" },
+              "The request failed or you may not have permission to read these records."
+            )}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.refineCore.tableQuery.refetch()}
+          >
+            <RotateCw />
+            {translate("buttons.refresh", "Retry")}
+          </Button>
+        </div>
       ) : (
-        <div ref={tableContext.ref}>
+        <div
+          ref={tableContext.ref}
+          className={cn(
+            preferences.density === "compact" &&
+              "[&_td]:py-1 [&_td>div]:leading-tight [&_th]:py-1.5"
+          )}
+        >
           <DataTable table={table} />
         </div>
       )}

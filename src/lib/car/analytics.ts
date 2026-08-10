@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { nocobaseClient } from "@nocobase/portal-sdk/client";
+import { fetchAllRecords } from "@/lib/car/fetch-all";
 
 type QueryRow = Record<string, string | number | null>;
 
@@ -178,7 +179,7 @@ export const useVehicleProfitability = () =>
   });
 
 export const useProfitabilitySummary = () => {
-  const { data } = useVehicleProfitability();
+  const { data, isLoading, isError, refetch } = useVehicleProfitability();
   const rows = data ?? EMPTY_PROFITABILITY;
   const winners = rows.filter((row) => row.verdict === "winner").length;
   const losers = rows.filter((row) => row.verdict === "loser").length;
@@ -199,6 +200,9 @@ export const useProfitabilitySummary = () => {
     totalCost,
     totalProfit,
     avgRoi,
+    isLoading,
+    isError,
+    refetch,
   };
 };
 
@@ -393,8 +397,6 @@ export const useCancellation = () =>
         corporate: "Corporate",
         unknown: "Unknown",
       };
-      const categoryLabels: Record<string, string> = {};
-
       return {
         total,
         cancelled,
@@ -495,10 +497,12 @@ export const useCashflow = () =>
   useQuery({
     queryKey: ["car", "analytics", "cashflow"],
     queryFn: async () => {
-      const [orders, payments] = await Promise.all([
-        runList<CashOrder>("scm_rental_orders", {
-          appends: ["customer", "vehicle"],
-          fields: [
+      const [ordersResult, paymentsResult] = await Promise.all([
+        fetchAllRecords<CashOrder>({
+          resource: "scm_rental_orders",
+          meta: {
+            appends: ["customer", "vehicle"],
+            fields: [
             "id",
             "order_no",
             "status",
@@ -507,18 +511,22 @@ export const useCashflow = () =>
             "actual_return",
             "customerId",
             "vehicleId",
-          ],
-          pageSize: 1000,
+            ],
+          },
         }),
-        runList<PaymentRow>("scm_payments", {
-          fields: ["id", "amount", "deposit", "refund", "status", "orderId"],
-          pageSize: 1000,
+        fetchAllRecords<PaymentRow>({
+          resource: "scm_payments",
+          meta: {
+            fields: ["id", "amount", "deposit", "refund", "status", "orderId"],
+          },
         }),
       ]);
 
-      const orderList = orders ?? [];
-      const paymentList = payments ?? [];
-      const orderById = new Map(orderList.map((order) => [order.id, order]));
+      if (!ordersResult.complete || !paymentsResult.complete) {
+        throw new Error("Cashflow data could not be loaded completely.");
+      }
+      const orderList = ordersResult.rows;
+      const paymentList = paymentsResult.rows;
       const paymentsByOrder = new Map<number, PaymentRow[]>();
       for (const payment of paymentList) {
         if (!payment.orderId) continue;
@@ -533,7 +541,6 @@ export const useCashflow = () =>
       const refundTodo: RefundTodoRow[] = [];
 
       for (const order of orderList) {
-        if (order.status !== "completed") continue;
         const orderPayments = paymentsByOrder.get(order.id) ?? [];
         const paid = orderPayments
           .filter((payment) => payment.status === "paid")
@@ -554,7 +561,7 @@ export const useCashflow = () =>
             : "—",
         };
 
-        if (outstanding > 0) {
+        if (order.status === "completed" && outstanding > 0) {
           aging.push({
             orderId: order.id,
             ...label,
@@ -576,20 +583,23 @@ export const useCashflow = () =>
         );
         const held = deposit - refund;
         if (held > 0) {
-          depositHeld.push({
-            orderId: order.id,
-            ...label,
-            deposit,
-            refund,
-            held,
-            status: order.status,
-          });
-          refundTodo.push({
-            orderId: order.id,
-            ...label,
-            refundDue: held,
-            daysAging,
-          });
+          if (order.status === "reserved" || order.status === "ongoing") {
+            depositHeld.push({
+              orderId: order.id,
+              ...label,
+              deposit,
+              refund,
+              held,
+              status: order.status,
+            });
+          } else if (order.status === "completed") {
+            refundTodo.push({
+              orderId: order.id,
+              ...label,
+              refundDue: held,
+              daysAging,
+            });
+          }
         }
       }
 
