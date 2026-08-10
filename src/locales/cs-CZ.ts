@@ -431,7 +431,7 @@ export const car = {
 } as const;
 
 export const starter = {
-  "shell.workspace": "Pracovní prostor aplikace AI",
+  "shell.workspace": "Car Rental",
   "shell.settings": "Nastavení",
   "shell.footer.freedom": "AI tvoří svobodně.",
   "shell.footer.reliabilitySuffix": "zachovává spolehlivost.",

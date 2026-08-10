@@ -69,7 +69,7 @@ function DesktopHeader() {
         <SidebarTrigger className="size-9 rounded-xl text-muted-foreground hover:text-foreground" />
         <div className="hidden h-5 w-px bg-border sm:block" />
         <span className="hidden text-sm font-medium text-muted-foreground sm:block">
-          {translate("shell.workspace", "AI application workspace")}
+          {translate("shell.workspace", "Car Rental")}
         </span>
       </div>
       <div className="flex items-center gap-2">
